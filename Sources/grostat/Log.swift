@@ -14,16 +14,43 @@ enum Log {
     }()
 
     private static var logFileHandle: FileHandle?
+    private static var logPath: String = ""
+    private static let maxLogSize: UInt64 = 5 * 1024 * 1024  // 5 MB
+    private static let keepRotations = 3  // grostat.log.1, .2, .3
 
     /// Call once to enable file logging next to the database
     static func setupFileLog(dbPath: String) {
         let dir = (dbPath as NSString).deletingLastPathComponent
-        let logPath = (dir as NSString).appendingPathComponent("grostat.log")
+        logPath = (dir as NSString).appendingPathComponent("grostat.log")
+        rotateIfNeeded()
         if !FileManager.default.fileExists(atPath: logPath) {
             FileManager.default.createFile(atPath: logPath, contents: nil)
         }
         logFileHandle = FileHandle(forWritingAtPath: logPath)
         logFileHandle?.seekToEndOfFile()
+    }
+
+    private static func rotateIfNeeded() {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: logPath),
+              let attrs = try? fm.attributesOfItem(atPath: logPath),
+              let size = attrs[.size] as? UInt64,
+              size >= maxLogSize
+        else { return }
+
+        // Shift existing rotations: .3 -> delete, .2 -> .3, .1 -> .2
+        for i in stride(from: keepRotations, through: 1, by: -1) {
+            let src = "\(logPath).\(i)"
+            let dst = "\(logPath).\(i + 1)"
+            if i == keepRotations {
+                try? fm.removeItem(atPath: src)
+            } else if fm.fileExists(atPath: src) {
+                try? fm.moveItem(atPath: src, toPath: dst)
+            }
+        }
+
+        // Current -> .1
+        try? fm.moveItem(atPath: logPath, toPath: "\(logPath).1")
     }
 
     private static func write(_ level: String, _ msg: String) {
