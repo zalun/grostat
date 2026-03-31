@@ -1,5 +1,8 @@
 import Foundation
+import os
 import SQLite3
+
+private let log = Logger(subsystem: "com.grostat.bar", category: "StatusReader")
 
 struct InverterReading {
     let timestamp: String
@@ -73,13 +76,18 @@ final class StatusReader {
 
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            log.error("Failed to open database at \(self.dbPath): \(String(cString: sqlite3_errmsg(db)))")
+            sqlite3_close(db)
             return nil
         }
         defer { sqlite3_close(db) }
 
         let sql = "SELECT * FROM readings ORDER BY id DESC LIMIT 1"
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            log.error("Failed to prepare query: \(String(cString: sqlite3_errmsg(db)))")
+            return nil
+        }
         defer { sqlite3_finalize(stmt) }
 
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
@@ -122,6 +130,79 @@ final class StatusReader {
             epv2Today: dblCol(stmt, "epv2_today"),
             alert: col(stmt, "alert") ?? ""
         )
+    }
+
+    func readRange(from: Date, to: Date) -> [InverterReading] {
+        guard FileManager.default.fileExists(atPath: dbPath) else { return [] }
+
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            log.error("Failed to open database at \(self.dbPath): \(String(cString: sqlite3_errmsg(db)))")
+            sqlite3_close(db)
+            return []
+        }
+        defer { sqlite3_close(db) }
+
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        let fromStr = fmt.string(from: from)
+        let toStr = fmt.string(from: to)
+
+        let sql = "SELECT * FROM readings WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp ASC"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            log.error("Failed to prepare range query: \(String(cString: sqlite3_errmsg(db)))")
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+
+        let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        sqlite3_bind_text(stmt, 1, (fromStr as NSString).utf8String, -1, SQLITE_TRANSIENT)
+        sqlite3_bind_text(stmt, 2, (toStr as NSString).utf8String, -1, SQLITE_TRANSIENT)
+
+        var results: [InverterReading] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            results.append(InverterReading(
+                timestamp: col(stmt, "timestamp") ?? "",
+                status: intCol(stmt, "status"),
+                ppv: dblCol(stmt, "ppv"),
+                pac: dblCol(stmt, "pac"),
+                vmaxPhase: dblCol(stmt, "vmax_phase"),
+                vacrPhase: dblCol(stmt, "vacr_phase"),
+                vacsPhase: dblCol(stmt, "vacs_phase"),
+                vactPhase: dblCol(stmt, "vact_phase"),
+                vpv1: dblCol(stmt, "vpv1"),
+                vpv2: dblCol(stmt, "vpv2"),
+                ipv1: dblCol(stmt, "ipv1"),
+                ipv2: dblCol(stmt, "ipv2"),
+                ppv1: dblCol(stmt, "ppv1"),
+                ppv2: dblCol(stmt, "ppv2"),
+                iacr: dblCol(stmt, "iacr"),
+                iacs: dblCol(stmt, "iacs"),
+                iact: dblCol(stmt, "iact"),
+                pacr: dblCol(stmt, "pacr"),
+                pacs: dblCol(stmt, "pacs"),
+                pact: dblCol(stmt, "pact"),
+                pf: dblCol(stmt, "pf"),
+                fac: dblCol(stmt, "fac"),
+                rac: dblCol(stmt, "rac"),
+                temperature: dblCol(stmt, "temperature"),
+                ipmTemperature: dblCol(stmt, "ipm_temperature"),
+                powerToday: dblCol(stmt, "power_today"),
+                powerTotal: dblCol(stmt, "power_total"),
+                timeTotal: dblCol(stmt, "time_total"),
+                faultType: intCol(stmt, "fault_type"),
+                warnCode: intCol(stmt, "warn_code"),
+                pBusVoltage: dblCol(stmt, "p_bus_voltage"),
+                nBusVoltage: dblCol(stmt, "n_bus_voltage"),
+                realOpPercent: dblCol(stmt, "real_op_percent"),
+                epv1Today: dblCol(stmt, "epv1_today"),
+                epv2Today: dblCol(stmt, "epv2_today"),
+                alert: col(stmt, "alert") ?? ""
+            ))
+        }
+        return results
     }
 
     // MARK: - Column helpers

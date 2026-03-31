@@ -4,6 +4,7 @@ struct StatusPopover: View {
     let reading: InverterReading?
     let config: BarConfig
     let onQuit: () -> Void
+    let onStats: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -138,6 +139,10 @@ struct StatusPopover: View {
 
     private var footer: some View {
         HStack {
+            Button("Statistics...") { onStats() }
+                .buttonStyle(.plain)
+                .foregroundColor(.secondary)
+                .padding(8)
             Spacer()
             Button("Quit") { onQuit() }
                 .buttonStyle(.plain)

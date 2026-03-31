@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var config: BarConfig!
     private var timer: Timer?
     private var latestReading: InverterReading?
+    private var statsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         config = BarConfig.load()
@@ -44,13 +45,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let view = StatusPopover(
                 reading: latestReading,
                 config: config,
-                onQuit: { NSApp.terminate(nil) }
+                onQuit: { NSApp.terminate(nil) },
+                onStats: { [weak self] in self?.showStatsWindow() }
             )
             popover.contentViewController = NSHostingController(rootView: view)
             if let button = statusItem.button {
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             }
         }
+    }
+
+    func showStatsWindow() {
+        popover.performClose(nil)
+
+        if let window = statsWindow {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let periodState = PeriodState()
+        let dataManager = StatsDataManager(reader: reader)
+        let view = StatsView(periodState: periodState, dataManager: dataManager)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Statistics"
+        window.minSize = NSSize(width: 700, height: 450)
+        window.contentViewController = NSHostingController(rootView: view)
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        statsWindow = window
     }
 
     private func refresh() {
