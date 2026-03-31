@@ -52,6 +52,7 @@ struct StatusPopover: View {
         let color: Color
         switch state {
         case .sleep: label = "SLEEP"; color = .gray
+        case .cloudy: label = "CLOUDY"; color = .blue
         case .producing: label = "OK"; color = .green
         case .onFire: label = "ON FIRE"; color = .orange
         case .fault: label = "FAULT"; color = .red

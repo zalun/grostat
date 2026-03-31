@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch state {
         case .sleep, .offline:
             button.attributedTitle = NSAttributedString(string: "")
-        case .producing, .onFire, .fault:
+        case .cloudy, .producing, .onFire, .fault:
             guard let r = latestReading else { break }
             let kw = r.ppv / 1000.0
             let text = String(format: " %.1fkW", kw)
