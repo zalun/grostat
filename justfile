@@ -61,25 +61,24 @@ publish VERSION:
     git push origin v{{VERSION}}
     echo "==> Creating GitHub release"
     gh release create v{{VERSION}} --title "v{{VERSION}}" --generate-notes
+    ROOT="$(pwd)"
     echo "==> Building CLI"
     swift build -c release
     echo "==> Building GrostatBar.app"
-    cd GrostatBar && swift build -c release && bash bundle.sh .build/release/GrostatBar
+    (cd GrostatBar && swift build -c release && bash bundle.sh .build/release/GrostatBar)
     echo "==> Creating tarball (CLI + app)"
     STAGING=$(mktemp -d)
-    cp .build/release/grostat "$STAGING/"
-    cp -r GrostatBar/GrostatBar.app "$STAGING/"
-    cd "$STAGING" && tar czf /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz grostat GrostatBar.app
+    cp "$ROOT/.build/release/grostat" "$STAGING/"
+    cp -r "$ROOT/GrostatBar/GrostatBar.app" "$STAGING/"
+    (cd "$STAGING" && tar czf /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz grostat GrostatBar.app)
     rm -rf "$STAGING"
     echo "==> Uploading to release"
     gh release upload v{{VERSION}} /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz
     SHA=$(shasum -a 256 /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz | awk '{print $1}')
     echo "==> Updating homebrew formula (SHA: $SHA)"
-    cd {{homebrew_repo}}
-    sed -i '' "s|url \".*\"|url \"https://github.com/zalun/grostat/releases/download/v{{VERSION}}/grostat-{{VERSION}}-arm64-macos.tar.gz\"|" Formula/grostat.rb
-    sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" Formula/grostat.rb
-    sed -i '' "s|version \".*\"|version \"{{VERSION}}\"|" Formula/grostat.rb
-    git add Formula/grostat.rb
-    git commit -m "Update formula to v{{VERSION}}"
-    git push origin main
+    BREW="{{homebrew_repo}}"
+    sed -i '' "s|url \".*\"|url \"https://github.com/zalun/grostat/releases/download/v{{VERSION}}/grostat-{{VERSION}}-arm64-macos.tar.gz\"|" "$BREW/Formula/grostat.rb"
+    sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" "$BREW/Formula/grostat.rb"
+    sed -i '' "s|version \".*\"|version \"{{VERSION}}\"|" "$BREW/Formula/grostat.rb"
+    (cd "$BREW" && git add Formula/grostat.rb && git commit -m "Update formula to v{{VERSION}}" && git push origin main)
     echo "==> Done! Run 'brew update && brew upgrade grostat' to install."
