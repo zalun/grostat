@@ -40,7 +40,9 @@ tarball VERSION: release
     cd .build/release && tar czf /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz grostat
     @shasum -a 256 /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz
 
-# Full release: tag, push, gh release, upload binary, show SHA
+homebrew_repo := "../homebrew-grostat"
+
+# Full release: tag, push, gh release, upload binary, update homebrew formula
 publish VERSION:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -55,6 +57,13 @@ publish VERSION:
     cd .build/release && tar czf /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz grostat
     echo "==> Uploading to release"
     gh release upload v{{VERSION}} /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz
-    echo "==> Done. Update homebrew formula with this SHA:"
-    sleep 5
-    curl -sL "https://github.com/zalun/grostat/releases/download/v{{VERSION}}/grostat-{{VERSION}}-arm64-macos.tar.gz" | shasum -a 256
+    SHA=$(shasum -a 256 /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz | awk '{print $1}')
+    echo "==> Updating homebrew formula (SHA: $SHA)"
+    cd {{homebrew_repo}}
+    sed -i '' "s|url \".*\"|url \"https://github.com/zalun/grostat/releases/download/v{{VERSION}}/grostat-{{VERSION}}-arm64-macos.tar.gz\"|" Formula/grostat.rb
+    sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" Formula/grostat.rb
+    sed -i '' "s|version \".*\"|version \"{{VERSION}}\"|" Formula/grostat.rb
+    git add Formula/grostat.rb
+    git commit -m "Update formula to v{{VERSION}}"
+    git push origin main
+    echo "==> Done! Run 'brew update && brew upgrade grostat' to install."
