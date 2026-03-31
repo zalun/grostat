@@ -1,0 +1,8 @@
+*.db
+.env
+__pycache__/
+.venv/
+dist/
+*.egg-info/
+.ruff_cache/
+dane_growatt/
