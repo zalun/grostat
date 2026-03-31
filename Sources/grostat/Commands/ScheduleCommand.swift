@@ -29,11 +29,15 @@ struct ScheduleCommand: ParsableCommand {
             throw GrostatError.config("Cannot find grostat binary in PATH")
         }
 
+        let config = Config.load()
+        let logDir = (config.resolvedDbPath as NSString).deletingLastPathComponent
+
         let plist = LaunchAgent.generate(
             binary: grostatPath,
             intervalMinutes: interval,
             startHour: startHour,
-            endHour: endHour
+            endHour: endHour,
+            logDir: logDir
         )
 
         let dir = plistPath.deletingLastPathComponent()
@@ -44,7 +48,7 @@ struct ScheduleCommand: ParsableCommand {
         if result == 0 {
             print("Scheduled: grostat collect every \(interval) min (\(startHour):00-\(endHour):00)")
             print("Plist: \(plistPath.path)")
-            print("Logs: /tmp/grostat.stdout.log, /tmp/grostat.stderr.log")
+            print("Logs: \(logDir)/grostat.log")
         } else {
             print("Warning: launchctl load failed. Try manually: launchctl load \(plistPath.path)")
         }
@@ -108,7 +112,7 @@ enum LaunchAgent {
     }
 
     static func generate(
-        binary: String, intervalMinutes: Int, startHour: Int, endHour: Int
+        binary: String, intervalMinutes: Int, startHour: Int, endHour: Int, logDir: String
     ) -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -129,9 +133,9 @@ enum LaunchAgent {
         \(calendarEntries(intervalMinutes: intervalMinutes, startHour: startHour, endHour: endHour))
             </array>
             <key>StandardOutPath</key>
-            <string>/tmp/grostat.stdout.log</string>
+            <string>\(logDir)/grostat.stdout.log</string>
             <key>StandardErrorPath</key>
-            <string>/tmp/grostat.stderr.log</string>
+            <string>\(logDir)/grostat.stderr.log</string>
         </dict>
         </plist>
         """

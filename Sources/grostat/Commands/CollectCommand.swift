@@ -21,7 +21,9 @@ struct CollectCommand: ParsableCommand {
             throw ExitCode.failure
         }
 
-        let db = try Database(path: config.resolvedDbPath)
+        let dbPath = config.resolvedDbPath
+        Log.setupFileLog(dbPath: dbPath)
+        let db = try Database(path: dbPath)
         let client = GrowattClient(config: config)
         let alerts = AlertChecker(config: config)
 
