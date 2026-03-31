@@ -40,15 +40,7 @@ final class PeriodState: ObservableObject {
     }
 
     private func step(by value: Int) -> Date {
-        let cal = Calendar.current
-        let component: Calendar.Component
-        switch granularity {
-        case .day: component = .day
-        case .week: component = .weekOfYear
-        case .month: component = .month
-        case .year: component = .year
-        }
-        return cal.date(byAdding: component, value: value, to: selectedDate) ?? selectedDate
+        Calendar.current.date(byAdding: granularity.calendarComponent, value: value, to: selectedDate) ?? selectedDate
     }
 
     private static let dayFmt: DateFormatter = {

@@ -118,15 +118,17 @@ struct StatsChartView: View {
             .lineStyle(StrokeStyle(lineWidth: 2))
             .interpolationMethod(.catmullRom)
         }
-        ForEach(data.primary.filter { $0.value2 != nil }) { point in
-            LineMark(
-                x: .value("Time", point.date),
-                y: .value("String 2", point.value2!),
-                series: .value("Series", "String 2")
-            )
-            .foregroundStyle(coolBlue)
-            .lineStyle(StrokeStyle(lineWidth: 2))
-            .interpolationMethod(.catmullRom)
+        ForEach(data.primary) { point in
+            if let v2 = point.value2 {
+                LineMark(
+                    x: .value("Time", point.date),
+                    y: .value("String 2", v2),
+                    series: .value("Series", "String 2")
+                )
+                .foregroundStyle(coolBlue)
+                .lineStyle(StrokeStyle(lineWidth: 2))
+                .interpolationMethod(.catmullRom)
+            }
         }
     }
 

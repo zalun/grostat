@@ -10,6 +10,9 @@ struct StatsView: View {
     @State private var leftData: ChartData?
     @State private var rightData: ChartData?
 
+    private let solarGold = Color(red: 0.95, green: 0.75, blue: 0.2)
+    private let coolBlue = Color(red: 0.4, green: 0.6, blue: 0.85)
+
     private var leftMetric: Metric {
         Metric(rawValue: leftMetricRaw) ?? .energy
     }
@@ -103,11 +106,11 @@ struct StatsView: View {
     private func legend(metric: Metric) -> some View {
         HStack(spacing: 16) {
             if metric == .powerPerString {
-                legendItem(color: Color(red: 0.95, green: 0.75, blue: 0.2), label: "String 1", dashed: false)
-                legendItem(color: Color(red: 0.4, green: 0.6, blue: 0.85), label: "String 2", dashed: false)
+                legendItem(color: solarGold, label: "String 1", dashed: false)
+                legendItem(color: coolBlue, label: "String 2", dashed: false)
             } else {
-                legendItem(color: Color(red: 0.95, green: 0.75, blue: 0.2), label: periodState.periodLabel, dashed: false)
-                legendItem(color: Color(red: 0.4, green: 0.6, blue: 0.85), label: periodState.comparisonMode.label, dashed: true)
+                legendItem(color: solarGold, label: periodState.periodLabel, dashed: false)
+                legendItem(color: coolBlue, label: periodState.comparisonMode.label, dashed: true)
             }
         }
         .font(.caption2)
@@ -116,20 +119,16 @@ struct StatsView: View {
 
     private func legendItem(color: Color, label: String, dashed: Bool) -> some View {
         HStack(spacing: 4) {
-            if dashed {
-                Rectangle()
-                    .fill(color)
-                    .frame(width: 12, height: 2)
-                    .overlay(
+            Rectangle()
+                .fill(color)
+                .frame(width: 12, height: 2)
+                .overlay {
+                    if dashed {
                         Rectangle()
                             .stroke(style: StrokeStyle(lineWidth: 2, dash: [3, 2]))
                             .foregroundColor(color)
-                    )
-            } else {
-                Rectangle()
-                    .fill(color)
-                    .frame(width: 12, height: 2)
-            }
+                    }
+                }
             Text(label)
         }
     }

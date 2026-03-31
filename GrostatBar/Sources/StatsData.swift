@@ -14,6 +14,15 @@ enum Granularity: String, CaseIterable, Identifiable {
         case .year: return "Year"
         }
     }
+
+    var calendarComponent: Calendar.Component {
+        switch self {
+        case .day: return .day
+        case .week: return .weekOfYear
+        case .month: return .month
+        case .year: return .year
+        }
+    }
 }
 
 // MARK: - ComparisonMode
@@ -120,23 +129,14 @@ struct PeriodRange {
 
     func comparison(mode: ComparisonMode, granularity: Granularity) -> PeriodRange {
         let cal = Calendar.current
+        let component: Calendar.Component
         switch mode {
-        case .previousPeriod:
-            let offset: Calendar.Component
-            switch granularity {
-            case .day: offset = .day
-            case .week: offset = .weekOfYear
-            case .month: offset = .month
-            case .year: offset = .year
-            }
-            let s = cal.date(byAdding: offset, value: -1, to: start) ?? start
-            let e = cal.date(byAdding: offset, value: -1, to: end) ?? end
-            return PeriodRange(start: s, end: e)
-        case .sameLastYear:
-            let s = cal.date(byAdding: .year, value: -1, to: start) ?? start
-            let e = cal.date(byAdding: .year, value: -1, to: end) ?? end
-            return PeriodRange(start: s, end: e)
+        case .previousPeriod: component = granularity.calendarComponent
+        case .sameLastYear: component = .year
         }
+        let s = cal.date(byAdding: component, value: -1, to: start) ?? start
+        let e = cal.date(byAdding: component, value: -1, to: end) ?? end
+        return PeriodRange(start: s, end: e)
     }
 }
 
@@ -210,14 +210,14 @@ final class StatsDataManager {
             guard let d = r.date else { continue }
             let comps: DateComponents
             switch granularity {
-            case .day:
-                fatalError("Unreachable: day granularity handled above")
             case .week:
                 comps = cal.dateComponents([.year, .month, .day, .hour], from: d)
             case .month:
                 comps = cal.dateComponents([.year, .month, .day], from: d)
             case .year:
                 comps = cal.dateComponents([.year, .month], from: d)
+            case .day:
+                fatalError("Unreachable: day granularity handled above")
             }
             let bucketDate = cal.date(from: comps) ?? d
             let (v1, v2) = extractValues(from: r, metric: metric)
@@ -230,7 +230,7 @@ final class StatsDataManager {
 
             switch metric {
             case .energy:
-                aggregated = values.last?.0 ?? 0
+                aggregated = values.map(\.0).max() ?? 0
                 aggregated2 = nil
             case .voltage, .temperature:
                 aggregated = values.map(\.0).max() ?? 0

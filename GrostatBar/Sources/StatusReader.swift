@@ -92,44 +92,8 @@ final class StatusReader {
 
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
 
-        return InverterReading(
-            timestamp: col(stmt, "timestamp") ?? "",
-            status: intCol(stmt, "status"),
-            ppv: dblCol(stmt, "ppv"),
-            pac: dblCol(stmt, "pac"),
-            vmaxPhase: dblCol(stmt, "vmax_phase"),
-            vacrPhase: dblCol(stmt, "vacr_phase"),
-            vacsPhase: dblCol(stmt, "vacs_phase"),
-            vactPhase: dblCol(stmt, "vact_phase"),
-            vpv1: dblCol(stmt, "vpv1"),
-            vpv2: dblCol(stmt, "vpv2"),
-            ipv1: dblCol(stmt, "ipv1"),
-            ipv2: dblCol(stmt, "ipv2"),
-            ppv1: dblCol(stmt, "ppv1"),
-            ppv2: dblCol(stmt, "ppv2"),
-            iacr: dblCol(stmt, "iacr"),
-            iacs: dblCol(stmt, "iacs"),
-            iact: dblCol(stmt, "iact"),
-            pacr: dblCol(stmt, "pacr"),
-            pacs: dblCol(stmt, "pacs"),
-            pact: dblCol(stmt, "pact"),
-            pf: dblCol(stmt, "pf"),
-            fac: dblCol(stmt, "fac"),
-            rac: dblCol(stmt, "rac"),
-            temperature: dblCol(stmt, "temperature"),
-            ipmTemperature: dblCol(stmt, "ipm_temperature"),
-            powerToday: dblCol(stmt, "power_today"),
-            powerTotal: dblCol(stmt, "power_total"),
-            timeTotal: dblCol(stmt, "time_total"),
-            faultType: intCol(stmt, "fault_type"),
-            warnCode: intCol(stmt, "warn_code"),
-            pBusVoltage: dblCol(stmt, "p_bus_voltage"),
-            nBusVoltage: dblCol(stmt, "n_bus_voltage"),
-            realOpPercent: dblCol(stmt, "real_op_percent"),
-            epv1Today: dblCol(stmt, "epv1_today"),
-            epv2Today: dblCol(stmt, "epv2_today"),
-            alert: col(stmt, "alert") ?? ""
-        )
+        let map = columnMap(stmt)
+        return readingFromRow(stmt, map)
     }
 
     func readRange(from: Date, to: Date) -> [InverterReading] {
@@ -161,76 +125,80 @@ final class StatusReader {
         sqlite3_bind_text(stmt, 1, (fromStr as NSString).utf8String, -1, SQLITE_TRANSIENT)
         sqlite3_bind_text(stmt, 2, (toStr as NSString).utf8String, -1, SQLITE_TRANSIENT)
 
+        let map = columnMap(stmt)
         var results: [InverterReading] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            results.append(InverterReading(
-                timestamp: col(stmt, "timestamp") ?? "",
-                status: intCol(stmt, "status"),
-                ppv: dblCol(stmt, "ppv"),
-                pac: dblCol(stmt, "pac"),
-                vmaxPhase: dblCol(stmt, "vmax_phase"),
-                vacrPhase: dblCol(stmt, "vacr_phase"),
-                vacsPhase: dblCol(stmt, "vacs_phase"),
-                vactPhase: dblCol(stmt, "vact_phase"),
-                vpv1: dblCol(stmt, "vpv1"),
-                vpv2: dblCol(stmt, "vpv2"),
-                ipv1: dblCol(stmt, "ipv1"),
-                ipv2: dblCol(stmt, "ipv2"),
-                ppv1: dblCol(stmt, "ppv1"),
-                ppv2: dblCol(stmt, "ppv2"),
-                iacr: dblCol(stmt, "iacr"),
-                iacs: dblCol(stmt, "iacs"),
-                iact: dblCol(stmt, "iact"),
-                pacr: dblCol(stmt, "pacr"),
-                pacs: dblCol(stmt, "pacs"),
-                pact: dblCol(stmt, "pact"),
-                pf: dblCol(stmt, "pf"),
-                fac: dblCol(stmt, "fac"),
-                rac: dblCol(stmt, "rac"),
-                temperature: dblCol(stmt, "temperature"),
-                ipmTemperature: dblCol(stmt, "ipm_temperature"),
-                powerToday: dblCol(stmt, "power_today"),
-                powerTotal: dblCol(stmt, "power_total"),
-                timeTotal: dblCol(stmt, "time_total"),
-                faultType: intCol(stmt, "fault_type"),
-                warnCode: intCol(stmt, "warn_code"),
-                pBusVoltage: dblCol(stmt, "p_bus_voltage"),
-                nBusVoltage: dblCol(stmt, "n_bus_voltage"),
-                realOpPercent: dblCol(stmt, "real_op_percent"),
-                epv1Today: dblCol(stmt, "epv1_today"),
-                epv2Today: dblCol(stmt, "epv2_today"),
-                alert: col(stmt, "alert") ?? ""
-            ))
+            results.append(readingFromRow(stmt, map))
         }
         return results
     }
 
     // MARK: - Column helpers
 
-    private func colIndex(_ stmt: OpaquePointer?, _ name: String) -> Int32? {
+    private func columnMap(_ stmt: OpaquePointer?) -> [String: Int32] {
+        var map: [String: Int32] = [:]
         let count = sqlite3_column_count(stmt)
         for i in 0..<count {
-            if let cName = sqlite3_column_name(stmt, i), String(cString: cName) == name {
-                return i
+            if let cName = sqlite3_column_name(stmt, i) {
+                map[String(cString: cName)] = i
             }
         }
-        return nil
+        return map
     }
 
-    private func col(_ stmt: OpaquePointer?, _ name: String) -> String? {
-        guard let i = colIndex(stmt, name),
-              let text = sqlite3_column_text(stmt, i)
-        else { return nil }
+    private func col(_ stmt: OpaquePointer?, _ name: String, _ map: [String: Int32]) -> String? {
+        guard let i = map[name], let text = sqlite3_column_text(stmt, i) else { return nil }
         return String(cString: text)
     }
 
-    private func dblCol(_ stmt: OpaquePointer?, _ name: String) -> Double {
-        guard let i = colIndex(stmt, name) else { return 0 }
+    private func dbl(_ stmt: OpaquePointer?, _ name: String, _ map: [String: Int32]) -> Double {
+        guard let i = map[name] else { return 0 }
         return sqlite3_column_double(stmt, i)
     }
 
-    private func intCol(_ stmt: OpaquePointer?, _ name: String) -> Int {
-        guard let i = colIndex(stmt, name) else { return 0 }
+    private func int(_ stmt: OpaquePointer?, _ name: String, _ map: [String: Int32]) -> Int {
+        guard let i = map[name] else { return 0 }
         return Int(sqlite3_column_int64(stmt, i))
+    }
+
+    private func readingFromRow(_ stmt: OpaquePointer?, _ map: [String: Int32]) -> InverterReading {
+        InverterReading(
+            timestamp: col(stmt, "timestamp", map) ?? "",
+            status: int(stmt, "status", map),
+            ppv: dbl(stmt, "ppv", map),
+            pac: dbl(stmt, "pac", map),
+            vmaxPhase: dbl(stmt, "vmax_phase", map),
+            vacrPhase: dbl(stmt, "vacr_phase", map),
+            vacsPhase: dbl(stmt, "vacs_phase", map),
+            vactPhase: dbl(stmt, "vact_phase", map),
+            vpv1: dbl(stmt, "vpv1", map),
+            vpv2: dbl(stmt, "vpv2", map),
+            ipv1: dbl(stmt, "ipv1", map),
+            ipv2: dbl(stmt, "ipv2", map),
+            ppv1: dbl(stmt, "ppv1", map),
+            ppv2: dbl(stmt, "ppv2", map),
+            iacr: dbl(stmt, "iacr", map),
+            iacs: dbl(stmt, "iacs", map),
+            iact: dbl(stmt, "iact", map),
+            pacr: dbl(stmt, "pacr", map),
+            pacs: dbl(stmt, "pacs", map),
+            pact: dbl(stmt, "pact", map),
+            pf: dbl(stmt, "pf", map),
+            fac: dbl(stmt, "fac", map),
+            rac: dbl(stmt, "rac", map),
+            temperature: dbl(stmt, "temperature", map),
+            ipmTemperature: dbl(stmt, "ipm_temperature", map),
+            powerToday: dbl(stmt, "power_today", map),
+            powerTotal: dbl(stmt, "power_total", map),
+            timeTotal: dbl(stmt, "time_total", map),
+            faultType: int(stmt, "fault_type", map),
+            warnCode: int(stmt, "warn_code", map),
+            pBusVoltage: dbl(stmt, "p_bus_voltage", map),
+            nBusVoltage: dbl(stmt, "n_bus_voltage", map),
+            realOpPercent: dbl(stmt, "real_op_percent", map),
+            epv1Today: dbl(stmt, "epv1_today", map),
+            epv2Today: dbl(stmt, "epv2_today", map),
+            alert: col(stmt, "alert", map) ?? ""
+        )
     }
 }
