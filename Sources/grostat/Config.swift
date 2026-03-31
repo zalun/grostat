@@ -2,7 +2,7 @@ import Foundation
 
 struct Config: Codable {
     var token: String = ""
-    var deviceSn: String = "NFB8922074"
+    var deviceSn: String = ""
     var dbPath: String = "~/.local/share/grostat/grostat.db"
     var alertWarningV: Double = 250.0
     var alertCriticalV: Double = 253.0

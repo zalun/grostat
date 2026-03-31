@@ -13,7 +13,11 @@ struct CollectCommand: ParsableCommand {
     func run() throws {
         let config = Config.load()
         guard !config.token.isEmpty else {
-            print("Token not set. Run 'grostat init' or set GROSTAT_TOKEN.")
+            print("Token not set. Run 'grostat init' and edit config, or set GROSTAT_TOKEN.")
+            throw ExitCode.failure
+        }
+        guard !config.deviceSn.isEmpty else {
+            print("Device SN not set. Edit ~/.config/grostat/config.json or set GROSTAT_DEVICE_SN.")
             throw ExitCode.failure
         }
 
