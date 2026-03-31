@@ -12,6 +12,8 @@ struct Grostat: ParsableCommand {
             StatusCommand.self,
             SummaryCommand.self,
             ExportCommand.self,
+            TokenCommand.self,
+            DeviceCommand.self,
             DbInfoCommand.self,
             ScheduleCommand.self,
             UnscheduleCommand.self,

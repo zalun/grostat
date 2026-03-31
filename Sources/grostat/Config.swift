@@ -61,10 +61,23 @@ struct Config: Codable {
         try FileManager.default.createDirectory(
             at: configDir, withIntermediateDirectories: true)
         let config = Config()
+        try save(config)
+        return configFile
+    }
+
+    static func save(_ config: Config) throws {
+        try FileManager.default.createDirectory(
+            at: configDir, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(config)
         try data.write(to: configFile)
-        return configFile
+    }
+
+    /// Load config from file only (no env overrides), modify, and save back.
+    static func update(_ modify: (inout Config) -> Void) throws {
+        var config = loadFromFile()
+        modify(&config)
+        try save(config)
     }
 }
