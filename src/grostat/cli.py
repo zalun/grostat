@@ -15,7 +15,7 @@ from rich.table import Table
 
 from grostat.alerts import AlertChecker
 from grostat.api import GrowattClient
-from grostat.config import Settings
+from grostat.config import CONFIG_FILE, Settings, init_config
 from grostat.db import Database
 
 app = typer.Typer(help="grostat — Growatt inverter data collector")
@@ -45,9 +45,7 @@ def _get_deps() -> tuple[Settings, Database, GrowattClient, AlertChecker]:
     """Initialize all dependencies."""
     settings = Settings()
     if not settings.token:
-        console.print(
-            "[red]GROSTAT_TOKEN not set. Create a .env file or set the environment variable.[/red]"
-        )
+        console.print("[red]Token not set. Run 'grostat init' or set GROSTAT_TOKEN.[/red]")
         raise typer.Exit(1)
 
     db_path = settings.resolved_db_path()
@@ -84,6 +82,18 @@ def _collect_once(client: GrowattClient, db: Database, alerts: AlertChecker) -> 
         f" [{level}]" if level else "",
     )
     return True
+
+
+@app.command()
+def init() -> None:
+    """Create config file at ~/.config/grostat/config.json."""
+    if CONFIG_FILE.exists():
+        console.print(f"Config already exists: {CONFIG_FILE}")
+        console.print("Edit it directly or delete it to recreate.")
+        return
+    path = init_config()
+    console.print(f"Created config: [bold]{path}[/bold]")
+    console.print("Edit it and set your [bold]token[/bold] before running 'grostat collect'.")
 
 
 @app.command()
