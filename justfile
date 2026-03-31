@@ -40,7 +40,7 @@ tarball VERSION: release
     cd .build/release && tar czf /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz grostat
     @shasum -a 256 /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz
 
-homebrew_repo := "../homebrew-grostat"
+homebrew_repo := justfile_directory() / "../homebrew-grostat"
 
 # Full release: tag, push, gh release, upload binary, update homebrew formula
 publish VERSION:
