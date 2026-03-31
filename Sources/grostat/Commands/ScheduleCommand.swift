@@ -73,6 +73,8 @@ struct ScheduleCommand: ParsableCommand {
         if FileManager.default.fileExists(atPath: appPath) {
             LoginItems.add(appPath: appPath)
             print("GrostatBar.app added to Login Items (starts on login)")
+            Process.run("/usr/bin/open", arguments: [appPath])
+            print("GrostatBar.app launched")
         } else {
             print("Note: GrostatBar.app not found in /Applications/. Install it to enable autostart.")
         }
@@ -97,9 +99,12 @@ struct UnscheduleCommand: ParsableCommand {
         try FileManager.default.removeItem(at: plistPath)
         print("Unscheduled. Removed \(plistPath.path)")
 
-        // Remove GrostatBar.app from Login Items
+        // Remove GrostatBar.app from Login Items and quit running instance
         LoginItems.remove(appPath: "/Applications/GrostatBar.app")
         print("GrostatBar.app removed from Login Items")
+
+        Process.run("/usr/bin/pkill", arguments: ["-f", "GrostatBar"])
+        print("GrostatBar.app stopped")
     }
 }
 

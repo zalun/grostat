@@ -59,7 +59,7 @@ final class Database {
             let idx = Int32(i + 1)
             switch value {
             case let v as String:
-                sqlite3_bind_text(stmt, idx, (v as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(stmt, idx, (v as NSString).utf8String, -1, SQLITE_TRANSIENT)
             case let v as Double:
                 sqlite3_bind_double(stmt, idx, v)
             case let v as Int:
@@ -113,6 +113,8 @@ final class Database {
         return query(sql, params: params)
     }
 
+    private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+
     // MARK: - Helpers
 
     private func exec(_ sql: String) {
@@ -128,7 +130,7 @@ final class Database {
         defer { sqlite3_finalize(stmt) }
 
         for (i, param) in params.enumerated() {
-            sqlite3_bind_text(stmt, Int32(i + 1), (param as NSString).utf8String, -1, nil)
+            sqlite3_bind_text(stmt, Int32(i + 1), (param as NSString).utf8String, -1, SQLITE_TRANSIENT)
         }
 
         var results: [[String: Any]] = []
