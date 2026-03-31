@@ -68,15 +68,27 @@ struct ScheduleCommand: ParsableCommand {
             print("Warning: launchctl load failed. Try manually: launchctl load \(plistPath.path)")
         }
 
-        // Add GrostatBar.app to Login Items
-        let appPath = "/Applications/GrostatBar.app"
-        if FileManager.default.fileExists(atPath: appPath) {
-            LoginItems.add(appPath: appPath)
+        // Install and launch GrostatBar.app
+        let appDest = "/Applications/GrostatBar.app"
+        let cellarApp = LaunchAgent.findCellarApp()
+        if !FileManager.default.fileExists(atPath: appDest), let source = cellarApp {
+            do {
+                try FileManager.default.copyItem(atPath: source, toPath: appDest)
+                print("Installed GrostatBar.app to /Applications/")
+            } catch {
+                print("Warning: could not copy GrostatBar.app to /Applications/: \(error)")
+                print("Copy manually: cp -r \"\(source)\" /Applications/")
+            }
+        }
+        if FileManager.default.fileExists(atPath: appDest) {
+            LoginItems.add(appPath: appDest)
             print("GrostatBar.app added to Login Items (starts on login)")
-            Process.run("/usr/bin/open", arguments: [appPath])
+            Process.run("/usr/bin/open", arguments: [appDest])
             print("GrostatBar.app launched")
+        } else if cellarApp != nil {
+            print("Warning: could not install GrostatBar.app to /Applications/")
         } else {
-            print("Note: GrostatBar.app not found in /Applications/. Install it to enable autostart.")
+            print("Note: GrostatBar.app not found. Reinstall grostat via brew.")
         }
     }
 }
@@ -116,6 +128,26 @@ enum LaunchAgent {
     static var plistPath: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    }
+
+    static func findCellarApp() -> String? {
+        // Look for GrostatBar.app in Homebrew Cellar
+        let cellarPaths = [
+            "/opt/homebrew/Cellar/grostat",
+            "/usr/local/Cellar/grostat",
+        ]
+        for cellar in cellarPaths {
+            guard let versions = try? FileManager.default.contentsOfDirectory(atPath: cellar) else {
+                continue
+            }
+            for version in versions.sorted().reversed() {
+                let appPath = "\(cellar)/\(version)/GrostatBar.app"
+                if FileManager.default.fileExists(atPath: appPath) {
+                    return appPath
+                }
+            }
+        }
+        return nil
     }
 
     static func findBinary() -> String? {
