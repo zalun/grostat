@@ -52,6 +52,15 @@ struct ScheduleCommand: ParsableCommand {
         } else {
             print("Warning: launchctl load failed. Try manually: launchctl load \(plistPath.path)")
         }
+
+        // Add GrostatBar.app to Login Items
+        let appPath = "/Applications/GrostatBar.app"
+        if FileManager.default.fileExists(atPath: appPath) {
+            LoginItems.add(appPath: appPath)
+            print("GrostatBar.app added to Login Items (starts on login)")
+        } else {
+            print("Note: GrostatBar.app not found in /Applications/. Install it to enable autostart.")
+        }
     }
 }
 
@@ -72,6 +81,10 @@ struct UnscheduleCommand: ParsableCommand {
         _ = Process.run("/bin/launchctl", arguments: ["unload", plistPath.path])
         try FileManager.default.removeItem(at: plistPath)
         print("Unscheduled. Removed \(plistPath.path)")
+
+        // Remove GrostatBar.app from Login Items
+        LoginItems.remove(appPath: "/Applications/GrostatBar.app")
+        print("GrostatBar.app removed from Login Items")
     }
 }
 
@@ -160,6 +173,31 @@ enum LaunchAgent {
             }
         }
         return entries.joined(separator: "\n")
+    }
+}
+
+enum LoginItems {
+    static func add(appPath: String) {
+        // Use osascript to add to Login Items
+        let script = """
+            tell application "System Events"
+                if not (exists login item "GrostatBar") then
+                    make login item at end with properties {path:"\(appPath)", hidden:false}
+                end if
+            end tell
+            """
+        Process.run("/usr/bin/osascript", arguments: ["-e", script])
+    }
+
+    static func remove(appPath: String) {
+        let script = """
+            tell application "System Events"
+                if exists login item "GrostatBar" then
+                    delete login item "GrostatBar"
+                end if
+            end tell
+            """
+        Process.run("/usr/bin/osascript", arguments: ["-e", script])
     }
 }
 

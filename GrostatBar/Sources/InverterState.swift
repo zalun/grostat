@@ -10,18 +10,19 @@ enum InverterState {
 
     var sfSymbolName: String {
         switch self {
-        case .sleep: return "moon.zzz"
+        case .sleep: return "moon.fill"
         case .cloudy: return "cloud.fill"
         case .producing: return "sun.max.fill"
         case .onFire: return "bolt.fill"
         case .fault: return "exclamationmark.triangle.fill"
-        case .offline: return "questionmark.circle"
+        case .offline: return "bolt.slash.fill"
         }
     }
 
     static func from(reading: InverterReading?, config: BarConfig) -> InverterState {
         guard let r = reading else { return .offline }
-        if r.isStale { return .offline }
+        if r.isOffline { return .offline }
+        // Show last known state (dimmed if stale) for data < 1h old
         if r.status == 3 { return .fault }
         if r.status == 0 || r.ppv == 0 { return .sleep }
         if r.ppv >= config.onFireThreshold { return .onFire }

@@ -47,7 +47,12 @@ struct InverterReading {
 
     var isStale: Bool {
         guard let d = date else { return true }
-        return Date().timeIntervalSince(d) > 600  // 10 minutes
+        return Date().timeIntervalSince(d) > 900  // 15 minutes
+    }
+
+    var isOffline: Bool {
+        guard let d = date else { return true }
+        return Date().timeIntervalSince(d) > 3600  // 1 hour
     }
 }
 
