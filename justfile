@@ -29,7 +29,7 @@ fmt:
 # Clean build artifacts
 clean:
     swift package clean
-    rm -rf .build
+    rm -rf .build GrostatBar/.build GrostatBar/GrostatBar.app
 
 # Show binary size
 size: release
@@ -40,9 +40,18 @@ tarball VERSION: release
     cd .build/release && tar czf /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz grostat
     @shasum -a 256 /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz
 
+# Build GrostatBar.app
+build-app:
+    cd GrostatBar && swift build -c release && bash bundle.sh .build/release/GrostatBar
+
+# Create GrostatBar.app zip for release
+tarball-app VERSION: build-app
+    cd GrostatBar && zip -r /tmp/GrostatBar-{{VERSION}}-arm64-macos.zip GrostatBar.app
+    @shasum -a 256 /tmp/GrostatBar-{{VERSION}}-arm64-macos.zip
+
 homebrew_repo := justfile_directory() / "../homebrew-grostat"
 
-# Full release: tag, push, gh release, upload binary, update homebrew formula
+# Full release: tag, push, gh release, upload binaries, update homebrew
 publish VERSION:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -51,19 +60,26 @@ publish VERSION:
     git push origin v{{VERSION}}
     echo "==> Creating GitHub release"
     gh release create v{{VERSION}} --title "v{{VERSION}}" --generate-notes
-    echo "==> Building release binary"
+    echo "==> Building CLI release binary"
     swift build -c release
-    echo "==> Creating tarball"
+    echo "==> Creating CLI tarball"
     cd .build/release && tar czf /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz grostat
+    echo "==> Building GrostatBar.app"
+    cd GrostatBar && swift build -c release && bash bundle.sh .build/release/GrostatBar
+    cd GrostatBar && zip -r /tmp/GrostatBar-{{VERSION}}-arm64-macos.zip GrostatBar.app
     echo "==> Uploading to release"
-    gh release upload v{{VERSION}} /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz
-    SHA=$(shasum -a 256 /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz | awk '{print $1}')
-    echo "==> Updating homebrew formula (SHA: $SHA)"
+    gh release upload v{{VERSION}} /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz /tmp/GrostatBar-{{VERSION}}-arm64-macos.zip
+    CLI_SHA=$(shasum -a 256 /tmp/grostat-{{VERSION}}-arm64-macos.tar.gz | awk '{print $1}')
+    APP_SHA=$(shasum -a 256 /tmp/GrostatBar-{{VERSION}}-arm64-macos.zip | awk '{print $1}')
+    echo "==> CLI SHA: $CLI_SHA"
+    echo "==> App SHA: $APP_SHA"
+    echo "==> Updating homebrew formula"
     cd {{homebrew_repo}}
     sed -i '' "s|url \".*\"|url \"https://github.com/zalun/grostat/releases/download/v{{VERSION}}/grostat-{{VERSION}}-arm64-macos.tar.gz\"|" Formula/grostat.rb
-    sed -i '' "s|sha256 \".*\"|sha256 \"$SHA\"|" Formula/grostat.rb
+    sed -i '' "s|sha256 \".*\"|sha256 \"$CLI_SHA\"|" Formula/grostat.rb
     sed -i '' "s|version \".*\"|version \"{{VERSION}}\"|" Formula/grostat.rb
     git add Formula/grostat.rb
     git commit -m "Update formula to v{{VERSION}}"
     git push origin main
-    echo "==> Done! Run 'brew update && brew upgrade grostat' to install."
+    echo "==> Done! CLI: 'brew update && brew upgrade grostat'"
+    echo "==> App: download GrostatBar-{{VERSION}}-arm64-macos.zip from releases"

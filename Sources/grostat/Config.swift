@@ -8,6 +8,7 @@ struct Config: Codable {
     var alertCriticalV: Double = 253.0
     var apiBase: String = "https://openapi.growatt.com/v4/new-api"
     var loopIntervalS: Int = 300
+    var ratedPowerW: Int = 10000
 
     enum CodingKeys: String, CodingKey {
         case token
@@ -17,6 +18,7 @@ struct Config: Codable {
         case alertCriticalV = "alert_critical_v"
         case apiBase = "api_base"
         case loopIntervalS = "loop_interval_s"
+        case ratedPowerW = "rated_power_w"
     }
 
     static let configDir = FileManager.default.homeDirectoryForCurrentUser
@@ -36,6 +38,8 @@ struct Config: Codable {
         if let v = ProcessInfo.processInfo.environment["GROSTAT_API_BASE"] { config.apiBase = v }
         if let v = ProcessInfo.processInfo.environment["GROSTAT_LOOP_INTERVAL_S"],
            let i = Int(v) { config.loopIntervalS = i }
+        if let v = ProcessInfo.processInfo.environment["GROSTAT_RATED_POWER_W"],
+           let i = Int(v) { config.ratedPowerW = i }
         return config
     }
 
