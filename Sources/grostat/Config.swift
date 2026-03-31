@@ -58,11 +58,13 @@ struct Config: Codable {
     }
 
     var resolvedDbPath: String {
-        let path = (dbPath as NSString).expandingTildeInPath
-        let dir = (path as NSString).deletingLastPathComponent
+        (dbPath as NSString).expandingTildeInPath
+    }
+
+    func ensureDbDirectory() {
+        let dir = (resolvedDbPath as NSString).deletingLastPathComponent
         try? FileManager.default.createDirectory(
             atPath: dir, withIntermediateDirectories: true)
-        return path
     }
 
     private static func loadFromFile() -> Config {

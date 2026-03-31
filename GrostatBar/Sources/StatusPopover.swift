@@ -26,7 +26,7 @@ struct StatusPopover: View {
             Divider()
             footer
         }
-        .frame(width: 300, height: 460)
+        .frame(width: 320, height: 480)
     }
 
     // MARK: - Header

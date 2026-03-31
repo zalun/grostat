@@ -79,7 +79,8 @@ final class Database {
     }
 
     func getReadingsForDate(_ date: String) -> [[String: Any]] {
-        query("SELECT * FROM readings WHERE timestamp LIKE '\(date)%' ORDER BY timestamp")
+        query("SELECT * FROM readings WHERE timestamp LIKE ? ORDER BY timestamp",
+              params: ["\(date)%"])
     }
 
     func getRowCount() -> Int {
@@ -96,13 +97,20 @@ final class Database {
     func exportReadings(from: String? = nil, to: String? = nil) -> [[String: Any]] {
         var sql = "SELECT * FROM readings"
         var conditions: [String] = []
-        if let f = from { conditions.append("timestamp >= '\(f)'") }
-        if let t = to { conditions.append("timestamp < '\(t) 99'") }
+        var params: [String] = []
+        if let f = from {
+            conditions.append("timestamp >= ?")
+            params.append(f)
+        }
+        if let t = to {
+            conditions.append("timestamp < ?")
+            params.append("\(t) 99")
+        }
         if !conditions.isEmpty {
             sql += " WHERE " + conditions.joined(separator: " AND ")
         }
         sql += " ORDER BY timestamp"
-        return query(sql)
+        return query(sql, params: params)
     }
 
     // MARK: - Helpers
@@ -111,13 +119,17 @@ final class Database {
         sqlite3_exec(db, sql, nil, nil, nil)
     }
 
-    private func query(_ sql: String) -> [[String: Any]] {
+    private func query(_ sql: String, params: [String] = []) -> [[String: Any]] {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             Log.error("Query failed: \(lastError)")
             return []
         }
         defer { sqlite3_finalize(stmt) }
+
+        for (i, param) in params.enumerated() {
+            sqlite3_bind_text(stmt, Int32(i + 1), (param as NSString).utf8String, -1, nil)
+        }
 
         var results: [[String: Any]] = []
         let colCount = sqlite3_column_count(stmt)

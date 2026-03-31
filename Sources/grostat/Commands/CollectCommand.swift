@@ -21,6 +21,7 @@ struct CollectCommand: ParsableCommand {
             throw ExitCode.failure
         }
 
+        config.ensureDbDirectory()
         let dbPath = config.resolvedDbPath
         Log.setupFileLog(dbPath: dbPath)
         let db = try Database(path: dbPath)

@@ -16,6 +16,21 @@ struct ScheduleCommand: ParsableCommand {
     @Option(name: .long, help: "End hour (default: 20)")
     var endHour: Int = 20
 
+    func validate() throws {
+        guard interval >= 1 && interval <= 60 else {
+            throw ValidationError("Interval must be between 1 and 60 minutes")
+        }
+        guard startHour >= 0 && startHour <= 23 else {
+            throw ValidationError("Start hour must be between 0 and 23")
+        }
+        guard endHour >= 1 && endHour <= 24 else {
+            throw ValidationError("End hour must be between 1 and 24")
+        }
+        guard startHour < endHour else {
+            throw ValidationError("Start hour must be before end hour")
+        }
+    }
+
     func run() throws {
         let plistPath = LaunchAgent.plistPath
 
@@ -139,8 +154,6 @@ enum LaunchAgent {
                 <string>\(binary)</string>
                 <string>collect</string>
             </array>
-            <key>StartInterval</key>
-            <integer>\(intervalMinutes * 60)</integer>
             <key>StartCalendarInterval</key>
             <array>
         \(calendarEntries(intervalMinutes: intervalMinutes, startHour: startHour, endHour: endHour))
@@ -209,8 +222,12 @@ extension Process {
         process.arguments = arguments
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
-        try? process.run()
-        process.waitUntilExit()
-        return process.terminationStatus
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus
+        } catch {
+            return -1
+        }
     }
 }

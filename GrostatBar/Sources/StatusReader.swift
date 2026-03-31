@@ -39,10 +39,15 @@ struct InverterReading {
     let epv2Today: Double
     let alert: String
 
-    var date: Date? {
+    private static let dateParser: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return f.date(from: timestamp)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    var date: Date? {
+        Self.dateParser.date(from: timestamp)
     }
 
     var isStale: Bool {
