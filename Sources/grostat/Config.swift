@@ -21,6 +21,20 @@ struct Config: Codable {
         case ratedPowerW = "rated_power_w"
     }
 
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        token = (try? c.decode(String.self, forKey: .token)) ?? ""
+        deviceSn = (try? c.decode(String.self, forKey: .deviceSn)) ?? ""
+        dbPath = (try? c.decode(String.self, forKey: .dbPath)) ?? "~/.local/share/grostat/grostat.db"
+        alertWarningV = (try? c.decode(Double.self, forKey: .alertWarningV)) ?? 250.0
+        alertCriticalV = (try? c.decode(Double.self, forKey: .alertCriticalV)) ?? 253.0
+        apiBase = (try? c.decode(String.self, forKey: .apiBase)) ?? "https://openapi.growatt.com/v4/new-api"
+        loopIntervalS = (try? c.decode(Int.self, forKey: .loopIntervalS)) ?? 300
+        ratedPowerW = (try? c.decode(Int.self, forKey: .ratedPowerW)) ?? 10000
+    }
+
     static let configDir = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent(".config/grostat")
     static let configFile = configDir.appendingPathComponent("config.json")
