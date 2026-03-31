@@ -1,6 +1,6 @@
 [project]
 name = "grostat"
-version = "0.1.0"
+version = "0.2.0"
 description = "Growatt inverter data collector — full telemetry to SQLite"
 readme = {text = "Growatt inverter data collector", content-type = "text/plain"}
 requires-python = ">=3.12"
