@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let periodState = PeriodState()
-        let dataManager = StatsDataManager(reader: reader)
+        let dataManager = StatsDataManager(reader: reader, config: config)
         let view = StatsView(periodState: periodState, dataManager: dataManager)
 
         let window = NSWindow(

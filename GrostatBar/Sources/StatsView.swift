@@ -29,6 +29,12 @@ struct StatsView: View {
             if let ld = leftData {
                 SummaryCardsView(data: ld)
                     .padding(.vertical, 16)
+
+                if !ld.alerts.isEmpty {
+                    alertsBanner(ld.alerts)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 12)
+                }
             }
 
             HStack(spacing: 16) {
@@ -115,6 +121,33 @@ struct StatsView: View {
         }
         .font(.caption2)
         .foregroundColor(.secondary)
+    }
+
+    private func alertsBanner(_ alerts: [PeriodAlert]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(alerts) { alert in
+                HStack(spacing: 6) {
+                    Image(systemName: alert.severity == .critical
+                        ? "exclamationmark.triangle.fill"
+                        : "exclamationmark.circle.fill")
+                        .foregroundColor(alert.severity == .critical ? .red : .orange)
+                        .font(.caption)
+                    Text(alert.message)
+                        .font(.caption)
+                    Spacer()
+                    Text(String(alert.timestamp.suffix(8)))
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(alerts.contains { $0.severity == .critical }
+                    ? Color.red.opacity(0.1)
+                    : Color.orange.opacity(0.1))
+        )
     }
 
     private func legendItem(color: Color, label: String, dashed: Bool) -> some View {

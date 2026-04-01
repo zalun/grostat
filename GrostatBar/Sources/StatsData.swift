@@ -80,6 +80,16 @@ struct DataPoint: Identifiable {
     var id: Date { date }
 }
 
+// MARK: - Alert
+
+struct PeriodAlert: Identifiable {
+    enum Severity { case warning, critical }
+    let id = UUID()
+    let severity: Severity
+    let message: String
+    let timestamp: String
+}
+
 // MARK: - ChartData
 
 struct ChartData {
@@ -88,6 +98,7 @@ struct ChartData {
     let totalEnergy: Double
     let comparisonTotalEnergy: Double
     let peakPower: Double
+    let alerts: [PeriodAlert]
 
     var deltaPercent: Double? {
         guard comparisonTotalEnergy > 0 else { return nil }
@@ -144,9 +155,11 @@ struct PeriodRange {
 
 final class StatsDataManager {
     private let reader: StatusReader
+    private let config: BarConfig
 
-    init(reader: StatusReader) {
+    init(reader: StatusReader, config: BarConfig) {
         self.reader = reader
+        self.config = config
     }
 
     func load(date: Date, granularity: Granularity, comparisonMode: ComparisonMode, metric: Metric) -> ChartData {
@@ -168,14 +181,50 @@ final class StatsDataManager {
         let totalEnergy = sumDailyEnergy(readings: primaryReadings)
         let compTotalEnergy = sumDailyEnergy(readings: comparisonReadings)
         let peakPower = primaryReadings.map(\.pac).max().map { $0 / 1000.0 } ?? 0
+        let alerts = detectAlerts(readings: primaryReadings)
 
         return ChartData(
             primary: primaryPoints,
             comparison: rebasedComparison,
             totalEnergy: totalEnergy,
             comparisonTotalEnergy: compTotalEnergy,
-            peakPower: peakPower
+            peakPower: peakPower,
+            alerts: alerts
         )
+    }
+
+    private func detectAlerts(readings: [InverterReading]) -> [PeriodAlert] {
+        var alerts: [PeriodAlert] = []
+        var lastCriticalV: String?
+        var lastWarningV: String?
+        var lastFault: String?
+
+        for r in readings {
+            if r.vmaxPhase >= config.alertCriticalV && r.timestamp != lastCriticalV {
+                alerts.append(PeriodAlert(
+                    severity: .critical,
+                    message: "Voltage \(String(format: "%.1f", r.vmaxPhase))V (critical ≥\(String(format: "%.0f", config.alertCriticalV))V)",
+                    timestamp: r.timestamp
+                ))
+                lastCriticalV = r.timestamp
+            } else if r.vmaxPhase >= config.alertWarningV && r.timestamp != lastWarningV {
+                alerts.append(PeriodAlert(
+                    severity: .warning,
+                    message: "Voltage \(String(format: "%.1f", r.vmaxPhase))V (warning ≥\(String(format: "%.0f", config.alertWarningV))V)",
+                    timestamp: r.timestamp
+                ))
+                lastWarningV = r.timestamp
+            }
+            if r.faultType != 0 && r.timestamp != lastFault {
+                alerts.append(PeriodAlert(
+                    severity: .critical,
+                    message: "Fault type \(r.faultType)",
+                    timestamp: r.timestamp
+                ))
+                lastFault = r.timestamp
+            }
+        }
+        return alerts
     }
 
     /// Sum energy by taking the max powerToday per calendar day, then summing across days.
