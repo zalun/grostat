@@ -68,23 +68,51 @@ struct ScheduleCommand: ParsableCommand {
             print("Warning: launchctl load failed. Try manually: launchctl load \(plistPath.path)")
         }
 
-        // Install and launch GrostatBar.app
+        // Install or update GrostatBar.app
         let appDest = "/Applications/GrostatBar.app"
         let cellarApp = LaunchAgent.findCellarApp()
-        if !FileManager.default.fileExists(atPath: appDest), let source = cellarApp {
-            do {
-                try FileManager.default.copyItem(atPath: source, toPath: appDest)
-                print("Installed GrostatBar.app to /Applications/")
-            } catch {
-                print("Warning: could not copy GrostatBar.app to /Applications/: \(error)")
-                print("Copy manually: cp -r \"\(source)\" /Applications/")
+        if let source = cellarApp {
+            let needsInstall: Bool
+            if !FileManager.default.fileExists(atPath: appDest) {
+                needsInstall = true
+            } else {
+                let srcBin = "\(source)/Contents/MacOS/GrostatBar"
+                let dstBin = "\(appDest)/Contents/MacOS/GrostatBar"
+                let srcData = FileManager.default.contents(atPath: srcBin)
+                let dstData = FileManager.default.contents(atPath: dstBin)
+                if srcData == nil || dstData == nil {
+                    needsInstall = true
+                } else {
+                    needsInstall = srcData != dstData
+                }
+            }
+            if needsInstall {
+                do {
+                    if FileManager.default.fileExists(atPath: appDest) {
+                        try FileManager.default.removeItem(atPath: appDest)
+                    }
+                    try FileManager.default.copyItem(atPath: source, toPath: appDest)
+                    print("Installed GrostatBar.app to /Applications/")
+                } catch {
+                    if !FileManager.default.fileExists(atPath: appDest) {
+                        print("Error: previous GrostatBar.app was removed but new copy failed: \(error)")
+                    } else {
+                        print("Warning: could not copy GrostatBar.app to /Applications/: \(error)")
+                    }
+                    print("Copy manually: cp -r \"\(source)\" /Applications/")
+                }
             }
         }
         if FileManager.default.fileExists(atPath: appDest) {
             LoginItems.add(appPath: appDest)
             print("GrostatBar.app added to Login Items (starts on login)")
-            Process.run("/usr/bin/open", arguments: [appDest])
-            print("GrostatBar.app launched")
+            let openResult = Process.run("/usr/bin/open", arguments: [appDest])
+            if openResult == 0 {
+                print("GrostatBar.app launched")
+            } else {
+                print("Warning: could not launch GrostatBar.app (exit code \(openResult))")
+                print("Try launching manually: open \(appDest)")
+            }
         } else if cellarApp != nil {
             print("Warning: could not install GrostatBar.app to /Applications/")
         } else {

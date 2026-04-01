@@ -13,7 +13,11 @@ struct ConfigCommand: ParsableCommand {
         if config.token.isEmpty {
             maskedToken = "(not set)"
         } else {
-            maskedToken = String(config.token.prefix(6)) + "..." + String(config.token.suffix(4))
+            if config.token.count <= 10 {
+                maskedToken = "***"
+            } else {
+                maskedToken = String(config.token.prefix(6)) + "..." + String(config.token.suffix(4))
+            }
         }
 
         print("Config file:     \(Config.configFile.path)")
@@ -23,7 +27,7 @@ struct ConfigCommand: ParsableCommand {
         print("api_base:        \(config.apiBase)")
         print("rated_power_w:   \(config.ratedPowerW)")
         print("alert_warning_v: \(config.alertWarningV)")
-        print("alert_critical_v:\(config.alertCriticalV)")
+        print("alert_critical_v: \(config.alertCriticalV)")
         print("loop_interval_s: \(config.loopIntervalS)")
     }
 }
