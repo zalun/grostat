@@ -39,6 +39,13 @@ size: release
 build-app:
     cd GrostatBar && swift build -c release && bash bundle.sh .build/release/GrostatBar
 
+# Build CLI + app and install locally
+install: release build-app
+    cp .build/release/grostat ~/.local/bin/grostat
+    rm -rf /Applications/GrostatBar.app
+    cp -r GrostatBar/GrostatBar.app /Applications/GrostatBar.app
+    @echo "Installed grostat to ~/.local/bin/ and GrostatBar.app to /Applications/"
+
 # Build everything and create release tarball (CLI + app)
 tarball VERSION: release build-app
     #!/usr/bin/env bash

@@ -5,7 +5,7 @@ struct Grostat: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "grostat",
         abstract: "Growatt inverter data collector",
-        version: "0.6.1",
+        version: "0.7.0",
         subcommands: [
             InitCommand.self,
             CollectCommand.self,
@@ -17,6 +17,7 @@ struct Grostat: ParsableCommand {
             DbInfoCommand.self,
             ScheduleCommand.self,
             UnscheduleCommand.self,
+            ConfigCommand.self,
         ]
     )
 }
