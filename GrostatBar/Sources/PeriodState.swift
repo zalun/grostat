@@ -20,7 +20,7 @@ final class PeriodState: ObservableObject {
 
     init() {
         let g = UserDefaults.standard.string(forKey: Keys.granularity)
-            .flatMap { Granularity(rawValue: $0) } ?? .month
+            .flatMap { Granularity(rawValue: $0) } ?? .day
         let ts = UserDefaults.standard.double(forKey: Keys.selectedDate)
         let d = ts > 0 ? Date(timeIntervalSince1970: ts) : Date()
         let cm = UserDefaults.standard.string(forKey: Keys.comparisonMode)

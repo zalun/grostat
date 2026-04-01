@@ -31,6 +31,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
         }
 
+        // Main menu (needed for CMD+W in LSUIElement apps)
+        let mainMenu = NSMenu()
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenuItem.submenu = appMenu
+        NSApp.mainMenu = mainMenu
+
         // Initial read + timer
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in

@@ -8,6 +8,7 @@ struct StatsChartView: View {
 
     private let solarGold = Color(red: 0.95, green: 0.75, blue: 0.2)
     private let coolBlue = Color(red: 0.4, green: 0.6, blue: 0.85)
+    private let maxGapSeconds: TimeInterval = 900
 
     var body: some View {
         Chart {
@@ -69,22 +70,25 @@ struct StatsChartView: View {
 
     @ChartContentBuilder
     private var primaryMarks: some ChartContent {
-        ForEach(data.primary) { point in
-            LineMark(
-                x: .value("Time", point.date),
-                y: .value(metric.label, point.value),
-                series: .value("Series", "primary")
-            )
-            .foregroundStyle(solarGold)
-            .lineStyle(StrokeStyle(lineWidth: 2))
-            .interpolationMethod(.catmullRom)
+        let segments = segmentsByGap(data.primary, maxGap: maxGapSeconds)
+        ForEach(Array(segments.enumerated()), id: \.offset) { idx, segment in
+            ForEach(segment) { point in
+                LineMark(
+                    x: .value("Time", point.date),
+                    y: .value(metric.label, point.value),
+                    series: .value("Series", "pri\(idx)")
+                )
+                .foregroundStyle(solarGold)
+                .lineStyle(StrokeStyle(lineWidth: 2))
+                .interpolationMethod(.catmullRom)
 
-            AreaMark(
-                x: .value("Time", point.date),
-                y: .value(metric.label, point.value)
-            )
-            .foregroundStyle(solarGold.opacity(0.1))
-            .interpolationMethod(.catmullRom)
+                AreaMark(
+                    x: .value("Time", point.date),
+                    y: .value(metric.label, point.value)
+                )
+                .foregroundStyle(solarGold.opacity(0.1))
+                .interpolationMethod(.catmullRom)
+            }
         }
     }
 
@@ -92,38 +96,55 @@ struct StatsChartView: View {
 
     @ChartContentBuilder
     private var comparisonMarks: some ChartContent {
-        ForEach(data.comparison) { point in
-            LineMark(
-                x: .value("Time", point.date),
-                y: .value(metric.label, point.value),
-                series: .value("Series", "comparison")
-            )
-            .foregroundStyle(coolBlue)
-            .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-            .interpolationMethod(.catmullRom)
+        let segments = segmentsByGap(data.comparison, maxGap: maxGapSeconds)
+        ForEach(Array(segments.enumerated()), id: \.offset) { idx, segment in
+            ForEach(segment) { point in
+                LineMark(
+                    x: .value("Time", point.date),
+                    y: .value(metric.label, point.value),
+                    series: .value("Series", "cmp\(idx)")
+                )
+                .foregroundStyle(coolBlue)
+                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                .interpolationMethod(.catmullRom)
+            }
         }
+    }
+
+    private func segmentsByGap(_ points: [DataPoint], maxGap: TimeInterval) -> [[DataPoint]] {
+        guard !points.isEmpty else { return [] }
+        var segments: [[DataPoint]] = [[points[0]]]
+        for i in 1..<points.count {
+            if points[i].date.timeIntervalSince(points[i - 1].date) > maxGap {
+                segments.append([points[i]])
+            } else {
+                segments[segments.count - 1].append(points[i])
+            }
+        }
+        return segments
     }
 
     // MARK: - Power per String marks
 
     @ChartContentBuilder
     private var powerPerStringMarks: some ChartContent {
-        ForEach(data.primary) { point in
-            LineMark(
-                x: .value("Time", point.date),
-                y: .value("String 1", point.value),
-                series: .value("Series", "String 1")
-            )
-            .foregroundStyle(solarGold)
-            .lineStyle(StrokeStyle(lineWidth: 2))
-            .interpolationMethod(.catmullRom)
-        }
-        ForEach(data.primary) { point in
-            if let v2 = point.value2 {
+        let segments = segmentsByGap(data.primary, maxGap: maxGapSeconds)
+        ForEach(Array(segments.enumerated()), id: \.offset) { idx, segment in
+            ForEach(segment) { point in
                 LineMark(
                     x: .value("Time", point.date),
-                    y: .value("String 2", v2),
-                    series: .value("Series", "String 2")
+                    y: .value("String 1", point.value),
+                    series: .value("Series", "s1_\(idx)")
+                )
+                .foregroundStyle(solarGold)
+                .lineStyle(StrokeStyle(lineWidth: 2))
+                .interpolationMethod(.catmullRom)
+            }
+            ForEach(segment.filter { $0.value2 != nil }) { point in
+                LineMark(
+                    x: .value("Time", point.date),
+                    y: .value("String 2", point.value2!),
+                    series: .value("Series", "s2_\(idx)")
                 )
                 .foregroundStyle(coolBlue)
                 .lineStyle(StrokeStyle(lineWidth: 2))
@@ -166,7 +187,8 @@ struct StatsChartView: View {
                 }
                 .padding(6)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
-                .position(x: min(max(x, 40), geo.size.width - 40), y: 20)
+                .fixedSize()
+                .position(x: min(max(x, 50), geo.size.width - 50), y: 20)
             }
         }
     }
