@@ -1,4 +1,5 @@
 import Foundation
+import GrostatShared
 
 struct AlertChecker {
     let warningV: Double

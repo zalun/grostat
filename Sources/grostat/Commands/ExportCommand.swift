@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import GrostatShared
 
 struct ExportCommand: ParsableCommand {
     static let configuration = CommandConfiguration(

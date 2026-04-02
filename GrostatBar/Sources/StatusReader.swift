@@ -1,70 +1,11 @@
 import Foundation
+import GrostatShared
 import os
 import SQLite3
 
 private let log = Logger(subsystem: "com.grostat.bar", category: "StatusReader")
 
-struct InverterReading {
-    let timestamp: String
-    let status: Int
-    let ppv: Double
-    let pac: Double
-    let vmaxPhase: Double
-    let vacrPhase: Double
-    let vacsPhase: Double
-    let vactPhase: Double
-    let vpv1: Double
-    let vpv2: Double
-    let ipv1: Double
-    let ipv2: Double
-    let ppv1: Double
-    let ppv2: Double
-    let iacr: Double
-    let iacs: Double
-    let iact: Double
-    let pacr: Double
-    let pacs: Double
-    let pact: Double
-    let pf: Double
-    let fac: Double
-    let rac: Double
-    let temperature: Double
-    let ipmTemperature: Double
-    let powerToday: Double
-    let powerTotal: Double
-    let timeTotal: Double
-    let faultType: Int
-    let warnCode: Int
-    let pBusVoltage: Double
-    let nBusVoltage: Double
-    let realOpPercent: Double
-    let epv1Today: Double
-    let epv2Today: Double
-    let alert: String
-
-    private static let dateParser: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
-
-    var date: Date? {
-        Self.dateParser.date(from: timestamp)
-    }
-
-    var isStale: Bool {
-        guard let d = date else { return true }
-        return Date().timeIntervalSince(d) > 900  // 15 minutes
-    }
-
-    var isOffline: Bool {
-        guard let d = date else { return true }
-        return Date().timeIntervalSince(d) > 3600  // 1 hour
-    }
-}
-
-final class StatusReader {
+final class StatusReader: ReadingProvider {
     let dbPath: String
 
     init(dbPath: String) {
@@ -164,40 +105,47 @@ final class StatusReader {
     private func readingFromRow(_ stmt: OpaquePointer?, _ map: [String: Int32]) -> InverterReading {
         InverterReading(
             timestamp: col(stmt, "timestamp", map) ?? "",
-            status: int(stmt, "status", map),
-            ppv: dbl(stmt, "ppv", map),
-            pac: dbl(stmt, "pac", map),
-            vmaxPhase: dbl(stmt, "vmax_phase", map),
-            vacrPhase: dbl(stmt, "vacr_phase", map),
-            vacsPhase: dbl(stmt, "vacs_phase", map),
-            vactPhase: dbl(stmt, "vact_phase", map),
             vpv1: dbl(stmt, "vpv1", map),
             vpv2: dbl(stmt, "vpv2", map),
             ipv1: dbl(stmt, "ipv1", map),
             ipv2: dbl(stmt, "ipv2", map),
             ppv1: dbl(stmt, "ppv1", map),
             ppv2: dbl(stmt, "ppv2", map),
+            ppv: dbl(stmt, "ppv", map),
+            epv1Today: dbl(stmt, "epv1_today", map),
+            epv2Today: dbl(stmt, "epv2_today", map),
+            epv1Total: dbl(stmt, "epv1_total", map),
+            epv2Total: dbl(stmt, "epv2_total", map),
+            vacr: dbl(stmt, "vacr", map),
+            vacs: dbl(stmt, "vacs", map),
+            vact: dbl(stmt, "vact", map),
+            vacrPhase: dbl(stmt, "vacr_phase", map),
+            vacsPhase: dbl(stmt, "vacs_phase", map),
+            vactPhase: dbl(stmt, "vact_phase", map),
             iacr: dbl(stmt, "iacr", map),
             iacs: dbl(stmt, "iacs", map),
             iact: dbl(stmt, "iact", map),
             pacr: dbl(stmt, "pacr", map),
             pacs: dbl(stmt, "pacs", map),
             pact: dbl(stmt, "pact", map),
+            pac: dbl(stmt, "pac", map),
+            rac: dbl(stmt, "rac", map),
             pf: dbl(stmt, "pf", map),
             fac: dbl(stmt, "fac", map),
-            rac: dbl(stmt, "rac", map),
             temperature: dbl(stmt, "temperature", map),
             ipmTemperature: dbl(stmt, "ipm_temperature", map),
             powerToday: dbl(stmt, "power_today", map),
             powerTotal: dbl(stmt, "power_total", map),
             timeTotal: dbl(stmt, "time_total", map),
+            status: int(stmt, "status", map),
             faultType: int(stmt, "fault_type", map),
-            warnCode: int(stmt, "warn_code", map),
             pBusVoltage: dbl(stmt, "p_bus_voltage", map),
             nBusVoltage: dbl(stmt, "n_bus_voltage", map),
-            realOpPercent: dbl(stmt, "real_op_percent", map),
-            epv1Today: dbl(stmt, "epv1_today", map),
-            epv2Today: dbl(stmt, "epv2_today", map),
+            warnCode: int(stmt, "warn_code", map),
+            warningValue1: int(stmt, "warning_value1", map),
+            warningValue2: int(stmt, "warning_value2", map),
+            realOPPercent: dbl(stmt, "real_op_percent", map),
+            vmaxPhase: dbl(stmt, "vmax_phase", map),
             alert: col(stmt, "alert", map) ?? ""
         )
     }

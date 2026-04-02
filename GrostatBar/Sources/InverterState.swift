@@ -1,4 +1,5 @@
 import AppKit
+import GrostatShared
 
 enum InverterState {
     case sleep

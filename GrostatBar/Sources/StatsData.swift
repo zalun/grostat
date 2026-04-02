@@ -1,4 +1,5 @@
 import Foundation
+import GrostatShared
 
 // MARK: - Granularity
 
@@ -154,10 +155,10 @@ struct PeriodRange {
 // MARK: - StatsDataManager
 
 final class StatsDataManager {
-    private let reader: StatusReader
+    private let reader: ReadingProvider
     private let config: BarConfig
 
-    init(reader: StatusReader, config: BarConfig) {
+    init(reader: ReadingProvider, config: BarConfig) {
         self.reader = reader
         self.config = config
     }

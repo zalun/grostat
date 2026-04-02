@@ -1,4 +1,5 @@
 import Foundation
+import GrostatShared
 
 struct GrowattClient {
     let config: Config

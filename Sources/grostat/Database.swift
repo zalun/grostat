@@ -1,4 +1,5 @@
 import Foundation
+import GrostatShared
 import SQLite3
 
 final class Database {

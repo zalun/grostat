@@ -1,3 +1,4 @@
+import GrostatShared
 import SwiftUI
 
 struct StatusPopover: View {
@@ -112,7 +113,7 @@ struct StatusPopover: View {
             row("Fault", "\(r.faultType)", "")
             row("Warn", "\(r.warnCode)", "")
             row("DC Bus +/-", "\(f1(r.pBusVoltage))/\(f1(r.nBusVoltage))", "V")
-            row("Power limit", f1(r.realOpPercent), "%")
+            row("Power limit", f1(r.realOPPercent), "%")
         }
     }
 
