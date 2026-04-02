@@ -220,6 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let window = statsWindow {
             window.makeKeyAndOrderFront(nil)
+            NSApp.setActivationPolicy(.regular)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
@@ -240,7 +241,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.isReleasedWhenClosed = false
         window.makeKeyAndOrderFront(nil)
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.statsWindow = nil
+            NSApp.setActivationPolicy(.accessory)
+        }
 
         statsWindow = window
     }

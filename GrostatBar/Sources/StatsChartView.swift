@@ -64,8 +64,24 @@ struct StatsChartView: View {
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let location):
-                            if let date: Date = proxy.value(atX: location.x) {
-                                hoverDate = date
+                            // Y axis labels are on the left, so plot area starts after them
+                            let plotSize = proxy.plotAreaSize
+                            let overlayWidth = geo.size.width
+                            let leftAxisWidth = overlayWidth - plotSize.width
+                            let plotX = location.x - leftAxisWidth
+                            guard plotX >= 0 && plotX <= plotSize.width else {
+                                hoverDate = nil
+                                return
+                            }
+                            if let date: Date = proxy.value(atX: plotX) {
+                                // Clamp to data range to prevent chart expansion
+                                if let mn = data.primary.first?.date,
+                                   let mx = data.primary.last?.date,
+                                   date >= mn && date <= mx {
+                                    hoverDate = date
+                                } else {
+                                    hoverDate = nil
+                                }
                             }
                         case .ended:
                             hoverDate = nil
