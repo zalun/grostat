@@ -168,7 +168,21 @@ final class StatsDataManager {
         let cRange = pRange.comparison(mode: comparisonMode, granularity: granularity)
 
         let primaryReadings = reader.readRange(from: pRange.start, to: pRange.end)
-        let comparisonReadings = reader.readRange(from: cRange.start, to: cRange.end)
+        let allComparisonReadings = reader.readRange(from: cRange.start, to: cRange.end)
+
+        // Trim comparison to same time-of-day as latest primary reading
+        // so delta compares apples-to-apples (e.g., today at 14:00 vs yesterday at 14:00)
+        let comparisonReadings: [InverterReading]
+        if let lastPrimary = primaryReadings.last?.date {
+            let elapsed = lastPrimary.timeIntervalSince(pRange.start)
+            let cutoff = cRange.start.addingTimeInterval(elapsed)
+            comparisonReadings = allComparisonReadings.filter { r in
+                guard let d = r.date else { return false }
+                return d <= cutoff
+            }
+        } else {
+            comparisonReadings = allComparisonReadings
+        }
 
         let primaryPoints = aggregate(readings: primaryReadings, metric: metric, granularity: granularity)
         let comparisonPoints = aggregate(readings: comparisonReadings, metric: metric, granularity: granularity)
@@ -196,49 +210,149 @@ final class StatsDataManager {
 
     private func detectAlerts(readings: [InverterReading]) -> [PeriodAlert] {
         var alerts: [PeriodAlert] = []
-        var lastCriticalV: String?
-        var lastWarningV: String?
-        var lastFault: String?
+
+        // Track voltage spans and fault spans separately
+        typealias Span = (severity: PeriodAlert.Severity, start: String, end: String, detail: String)
+
+        // Voltage spans
+        var vSeverity: PeriodAlert.Severity? = nil
+        var vStart = "", vEnd = "", vMin = 0.0, vMax = 0.0
+
+        // Fault spans
+        var faultType: Int = 0
+        var fStart = "", fEnd = ""
+
+        func closeVoltageSpan() {
+            guard let sev = vSeverity else { return }
+            let label = sev == .critical ? "critical" : "warning"
+            let threshold = sev == .critical ? config.alertCriticalV : config.alertWarningV
+            let time = formatTimeRange(vStart, vEnd)
+            alerts.append(PeriodAlert(
+                severity: sev,
+                message: "\(f0(vMin))–\(f0(vMax))V (\(label) ≥\(f0(threshold))V)",
+                timestamp: time
+            ))
+        }
+
+        func closeFaultSpan() {
+            guard faultType != 0 else { return }
+            let time = formatTimeRange(fStart, fEnd)
+            alerts.append(PeriodAlert(
+                severity: .critical,
+                message: "\(faultName(faultType)) (\(faultType))",
+                timestamp: time
+            ))
+        }
 
         for r in readings {
-            if r.vmaxPhase >= config.alertCriticalV && r.timestamp != lastCriticalV {
-                alerts.append(PeriodAlert(
-                    severity: .critical,
-                    message: "Voltage \(String(format: "%.1f", r.vmaxPhase))V (critical ≥\(String(format: "%.0f", config.alertCriticalV))V)",
-                    timestamp: r.timestamp
-                ))
-                lastCriticalV = r.timestamp
-            } else if r.vmaxPhase >= config.alertWarningV && r.timestamp != lastWarningV {
-                alerts.append(PeriodAlert(
-                    severity: .warning,
-                    message: "Voltage \(String(format: "%.1f", r.vmaxPhase))V (warning ≥\(String(format: "%.0f", config.alertWarningV))V)",
-                    timestamp: r.timestamp
-                ))
-                lastWarningV = r.timestamp
+            // Voltage grouping
+            let sev: PeriodAlert.Severity?
+            if r.vmaxPhase >= config.alertCriticalV {
+                sev = .critical
+            } else if r.vmaxPhase >= config.alertWarningV {
+                sev = .warning
+            } else {
+                sev = nil
             }
-            if r.faultType != 0 && r.timestamp != lastFault {
-                alerts.append(PeriodAlert(
-                    severity: .critical,
-                    message: "Fault type \(r.faultType)",
-                    timestamp: r.timestamp
-                ))
-                lastFault = r.timestamp
+
+            if sev == vSeverity && sev != nil {
+                vEnd = r.timestamp
+                vMin = min(vMin, r.vmaxPhase)
+                vMax = max(vMax, r.vmaxPhase)
+            } else {
+                closeVoltageSpan()
+                vSeverity = sev
+                if sev != nil {
+                    vStart = r.timestamp; vEnd = r.timestamp
+                    vMin = r.vmaxPhase; vMax = r.vmaxPhase
+                }
+            }
+
+            // Fault grouping
+            if r.faultType != 0 {
+                if r.faultType == faultType {
+                    fEnd = r.timestamp
+                } else {
+                    closeFaultSpan()
+                    faultType = r.faultType
+                    fStart = r.timestamp; fEnd = r.timestamp
+                }
+            } else if faultType != 0 {
+                closeFaultSpan()
+                faultType = 0
             }
         }
+        closeVoltageSpan()
+        closeFaultSpan()
+
         return alerts
     }
 
-    /// Sum energy by taking the max powerToday per calendar day, then summing across days.
-    /// powerToday is a cumulative counter that resets daily.
+    private func faultName(_ code: Int) -> String {
+        switch code {
+        case 1: return "Auto test failed"
+        case 2: return "No AC connection"
+        case 3: return "PV isolation low"
+        case 4: return "Residual current high"
+        case 5: return "DC output high"
+        case 6: return "PV voltage high"
+        case 7: return "AC voltage high"
+        case 8: return "AC frequency high"
+        case 9: return "AC frequency low"
+        case 10: return "Temperature high"
+        case 24: return "DC injection high"
+        case 25: return "Residual current high"
+        case 26: return "PV insulation low"
+        case 30: return "Grid over-voltage"
+        case 31: return "Grid under-voltage"
+        case 32: return "Grid over-frequency"
+        case 33: return "Grid under-frequency"
+        case 34: return "Grid impedance high"
+        case 35: return "No grid"
+        case 36: return "Grid unbalance"
+        case 40: return "DC bus high"
+        case 41: return "DC bus low"
+        case 42: return "DC bus unbalance"
+        case 43: return "GFCI device failure"
+        case 44: return "10min grid over-voltage"
+        default: return "Fault"
+        }
+    }
+
+    private func formatTimeRange(_ start: String, _ end: String) -> String {
+        let s = String(start.suffix(8).prefix(5))
+        let e = String(end.suffix(8).prefix(5))
+        return s == e ? s : "\(s)–\(e)"
+    }
+
+    private func f0(_ v: Double) -> String {
+        String(format: "%.0f", v)
+    }
+
+    /// Sum energy per day. powerToday is a cumulative counter that resets daily,
+    /// but early morning readings may carry over yesterday's value before reset.
+    /// Detect the reset (value drops significantly) and take max after last reset.
     private func sumDailyEnergy(readings: [InverterReading]) -> Double {
         let cal = Calendar.current
-        var dailyMax: [DateComponents: Double] = [:]
+        // Group readings by day, preserving order
+        var dailyReadings: [DateComponents: [Double]] = [:]
         for r in readings {
             guard let d = r.date else { continue }
             let dayKey = cal.dateComponents([.year, .month, .day], from: d)
-            dailyMax[dayKey] = max(dailyMax[dayKey] ?? 0, r.powerToday)
+            dailyReadings[dayKey, default: []].append(r.powerToday)
         }
-        return dailyMax.values.reduce(0, +)
+        // For each day, find max powerToday after the last reset
+        return dailyReadings.values.map { values in
+            // Find last reset point (value drops by more than 50%)
+            var lastResetIdx = 0
+            for i in 1..<values.count {
+                if values[i] < values[i - 1] * 0.5 && values[i - 1] > 1 {
+                    lastResetIdx = i
+                }
+            }
+            let afterReset = values[lastResetIdx...]
+            return afterReset.max() ?? 0
+        }.reduce(0, +)
     }
 
     private func aggregate(readings: [InverterReading], metric: Metric, granularity: Granularity) -> [DataPoint] {

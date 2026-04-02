@@ -10,6 +10,20 @@ struct StatsChartView: View {
     private let coolBlue = Color(red: 0.4, green: 0.6, blue: 0.85)
     private let maxGapSeconds: TimeInterval = 900
 
+    private var yDomain: ClosedRange<Double> {
+        let allValues = (data.primary.map(\.value) + data.comparison.map(\.value)).filter { $0 > 0 }
+        guard let minVal = allValues.min(), let maxVal = allValues.max(), maxVal > 0 else {
+            return 0...1
+        }
+        // If min > 10% of max, zoom in (e.g. voltage 230-260V)
+        if minVal > maxVal * 0.1 {
+            let range = maxVal - minVal
+            let padding = max(range * 0.1, 1)
+            return max(0, minVal - padding)...(maxVal + padding)
+        }
+        return 0...(maxVal * 1.05)
+    }
+
     var body: some View {
         Chart {
             if metric == .powerPerString {
@@ -25,6 +39,7 @@ struct StatsChartView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
             }
         }
+        .chartYScale(domain: yDomain)
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: 6)) {
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
@@ -84,7 +99,8 @@ struct StatsChartView: View {
 
                 AreaMark(
                     x: .value("Time", point.date),
-                    y: .value(metric.label, point.value)
+                    yStart: .value("Base", yDomain.lowerBound),
+                    yEnd: .value(metric.label, point.value)
                 )
                 .foregroundStyle(solarGold.opacity(0.1))
                 .interpolationMethod(.catmullRom)

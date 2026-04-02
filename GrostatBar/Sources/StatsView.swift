@@ -4,8 +4,8 @@ struct StatsView: View {
     @ObservedObject var periodState: PeriodState
     let dataManager: StatsDataManager
 
-    @AppStorage("stats.leftMetric") private var leftMetricRaw: String = Metric.energy.rawValue
-    @AppStorage("stats.rightMetric") private var rightMetricRaw: String = Metric.powerDC.rawValue
+    @AppStorage("stats.leftMetric") private var leftMetricRaw: String = Metric.powerDC.rawValue
+    @AppStorage("stats.rightMetric") private var rightMetricRaw: String = Metric.voltage.rawValue
 
     @State private var leftData: ChartData?
     @State private var rightData: ChartData?
@@ -26,27 +26,29 @@ struct StatsView: View {
 
             Divider()
 
-            if let ld = leftData {
-                SummaryCardsView(data: ld)
-                    .padding(.vertical, 16)
+            ScrollView {
+                VStack(spacing: 0) {
+                    if let ld = leftData {
+                        SummaryCardsView(data: ld)
+                            .padding(.vertical, 16)
 
-                if !ld.alerts.isEmpty {
-                    alertsBanner(ld.alerts)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 12)
+                        if !ld.alerts.isEmpty {
+                            alertsBanner(ld.alerts)
+                                .padding(.horizontal, 20)
+                                .padding(.bottom, 12)
+                        }
+                    }
+
+                    HStack(spacing: 16) {
+                        chartPanel(metric: leftMetric, metricBinding: $leftMetricRaw, data: leftData)
+                        chartPanel(metric: rightMetric, metricBinding: $rightMetricRaw, data: rightData)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
                 }
             }
-
-            HStack(spacing: 16) {
-                chartPanel(metric: leftMetric, metricBinding: $leftMetricRaw, data: leftData)
-                chartPanel(metric: rightMetric, metricBinding: $rightMetricRaw, data: rightData)
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
-
-            Spacer(minLength: 0)
         }
-        .frame(minWidth: 700, minHeight: 450)
+        .frame(minWidth: 700, minHeight: 550)
         .task { reloadData() }
         .onChange(of: periodState.granularity) { _ in reloadData() }
         .onChange(of: periodState.selectedDate) { _ in reloadData() }
@@ -124,27 +126,47 @@ struct StatsView: View {
     }
 
     private func alertsBanner(_ alerts: [PeriodAlert]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(alerts) { alert in
-                HStack(spacing: 6) {
-                    Image(systemName: alert.severity == .critical
-                        ? "exclamationmark.triangle.fill"
-                        : "exclamationmark.circle.fill")
-                        .foregroundColor(alert.severity == .critical ? .red : .orange)
-                        .font(.caption)
-                    Text(alert.message)
-                        .font(.caption)
-                    Spacer()
-                    Text(String(alert.timestamp.suffix(8)))
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundColor(.secondary)
+        let critCount = alerts.filter { $0.severity == .critical }.count
+        let warnCount = alerts.filter { $0.severity == .warning }.count
+        let hasCritical = critCount > 0
+        let summary: String = [
+            critCount > 0 ? "\(critCount) critical" : nil,
+            warnCount > 0 ? "\(warnCount) warning" : nil,
+        ].compactMap { $0 }.joined(separator: ", ")
+
+        return DisclosureGroup {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(alerts) { alert in
+                    HStack(spacing: 6) {
+                        Image(systemName: alert.severity == .critical
+                            ? "exclamationmark.triangle.fill"
+                            : "exclamationmark.circle.fill")
+                            .foregroundColor(alert.severity == .critical ? .red : .orange)
+                            .font(.caption)
+                        Text(alert.message)
+                            .font(.caption)
+                        Spacer()
+                        Text(alert.timestamp)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: hasCritical
+                    ? "exclamationmark.triangle.fill"
+                    : "exclamationmark.circle.fill")
+                    .foregroundColor(hasCritical ? .red : .orange)
+                    .font(.caption)
+                Text(summary)
+                    .font(.caption)
             }
         }
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(alerts.contains { $0.severity == .critical }
+                .fill(hasCritical
                     ? Color.red.opacity(0.1)
                     : Color.orange.opacity(0.1))
         )
