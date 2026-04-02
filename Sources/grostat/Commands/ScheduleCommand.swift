@@ -16,6 +16,9 @@ struct ScheduleCommand: ParsableCommand {
     @Option(name: .long, help: "End hour (default: 20)")
     var endHour: Int = 20
 
+    @Flag(name: .long, help: "Enable HTTP server in GrostatBar for LAN clients")
+    var server = false
+
     func validate() throws {
         guard interval >= 1 && interval <= 60 else {
             throw ValidationError("Interval must be between 1 and 60 minutes")
@@ -32,6 +35,11 @@ struct ScheduleCommand: ParsableCommand {
     }
 
     func run() throws {
+        if server {
+            try Config.update { $0.serverEnabled = true }
+            print("Enabled HTTP server (GrostatBar will serve data on LAN)")
+        }
+
         let plistPath = LaunchAgent.plistPath
 
         if FileManager.default.fileExists(atPath: plistPath.path) {

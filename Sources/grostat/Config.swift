@@ -9,6 +9,10 @@ struct Config: Codable {
     var apiBase: String = "https://openapi.growatt.com/v4/new-api"
     var loopIntervalS: Int = 300
     var ratedPowerW: Int = 10000
+    var mode: String = "local"
+    var serverEnabled: Bool = false
+    var serverPort: Int = 7654
+    var server: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case token
@@ -19,6 +23,10 @@ struct Config: Codable {
         case apiBase = "api_base"
         case loopIntervalS = "loop_interval_s"
         case ratedPowerW = "rated_power_w"
+        case mode
+        case serverEnabled = "server_enabled"
+        case serverPort = "server_port"
+        case server
     }
 
     init() {}
@@ -33,6 +41,10 @@ struct Config: Codable {
         apiBase = (try? c.decode(String.self, forKey: .apiBase)) ?? "https://openapi.growatt.com/v4/new-api"
         loopIntervalS = (try? c.decode(Int.self, forKey: .loopIntervalS)) ?? 300
         ratedPowerW = (try? c.decode(Int.self, forKey: .ratedPowerW)) ?? 10000
+        mode = (try? c.decode(String.self, forKey: .mode)) ?? "local"
+        serverEnabled = (try? c.decode(Bool.self, forKey: .serverEnabled)) ?? false
+        serverPort = (try? c.decode(Int.self, forKey: .serverPort)) ?? 7654
+        server = try? c.decode(String.self, forKey: .server)
     }
 
     static let configDir = FileManager.default.homeDirectoryForCurrentUser
