@@ -118,13 +118,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func resolveAndConnect(_ server: DiscoveredServer) {
-        // Resolve first, THEN stop browser
+        // Resolve to get a usable IP address, then connect
         browser?.resolve(server) { [weak self] host, port in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.browser?.stop()
                 self.browser = nil
-                let address = "\(host):\(port)"
+                // host from NWConnection may be IPv6 — sanitize for URL use
+                var cleanHost = host
+                // Remove IPv6 scope ID (e.g., %en0)
+                if let pct = cleanHost.firstIndex(of: "%") {
+                    cleanHost = String(cleanHost[..<pct])
+                }
+                // Wrap IPv6 in brackets for URL
+                if cleanHost.contains(":") {
+                    cleanHost = "[\(cleanHost)]"
+                }
+                let address = "\(cleanHost):\(port)"
                 self.config.server = address
                 self.config.save()
                 self.connectToServer(address)
