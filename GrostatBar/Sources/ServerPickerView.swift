@@ -6,21 +6,23 @@ struct ServerPickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Select Grostat Server")
+            Text("Select Server")
                 .font(.headline)
                 .padding(.bottom, 4)
 
             ForEach(servers) { server in
                 Button(action: { onSelect(server) }) {
                     HStack {
-                        Image(systemName: "sun.max.fill")
+                        Image(systemName: "bolt.fill")
                             .foregroundColor(.orange)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(server.deviceSn)
-                                .font(.system(.body, design: .monospaced))
                             Text(server.hostname)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(.body)
+                            if !server.deviceSn.isEmpty {
+                                Text(server.deviceSn)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
@@ -34,6 +36,6 @@ struct ServerPickerView: View {
             }
         }
         .padding()
-        .frame(width: 280)
+        .frame(width: 260)
     }
 }

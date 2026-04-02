@@ -30,7 +30,7 @@ final class GrostatServer {
             "device_sn": config.deviceSn,
             "version": "1",
         ])
-        listener?.service = NWListener.Service(name: config.deviceSn, type: "_grostat._tcp", txtRecord: txtRecord)
+        listener?.service = NWListener.Service(name: nil, type: "_grostat._tcp", txtRecord: txtRecord)
 
         listener?.stateUpdateHandler = { state in
             switch state {

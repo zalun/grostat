@@ -58,7 +58,7 @@ final class ServerBrowser {
     private func toDiscoveredServer(_ result: NWBrowser.Result) -> DiscoveredServer? {
         guard case .service(let name, let type, let domain, _) = result.endpoint else { return nil }
 
-        var deviceSn = name
+        var deviceSn = ""
         let port: UInt16 = 7654
 
         if case .bonjour(let record) = result.metadata {
@@ -75,8 +75,8 @@ final class ServerBrowser {
 
     func resolve(_ server: DiscoveredServer, completion: @escaping (String, UInt16) -> Void) {
         guard let result = discovered.first(where: {
-            if case .service(let name, _, _, _) = $0.endpoint, name == server.hostname {
-                return true
+            if case .service(let name, _, _, _) = $0.endpoint {
+                return "\(name)" == server.hostname
             }
             return false
         }) else { return }

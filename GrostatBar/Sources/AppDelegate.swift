@@ -109,14 +109,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleServersDiscovered(_ servers: [DiscoveredServer]) {
         discoveredServers = servers
         if servers.count == 1 {
-            // Auto-connect to single server
             browser?.stop()
             browser = nil
+            showConnectingState(servers[0])
             selectServer(servers[0])
         } else if servers.count > 1 {
+            showFoundState(servers.count)
             showServerPicker()
         }
-        // 0 servers: keep searching, status bar shows "Searching..."
     }
 
     private func selectServer(_ server: DiscoveredServer) {
@@ -142,11 +142,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showSearchingState() {
         guard let button = statusItem?.button else { return }
-        let image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: nil)
+        let image = NSImage(systemSymbolName: "bolt.slash.fill", accessibilityDescription: nil)
         let iconConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
         button.image = image?.withSymbolConfiguration(iconConfig)
         button.image?.isTemplate = true
         button.attributedTitle = NSAttributedString(string: " Searching...")
+    }
+
+    private func showFoundState(_ count: Int) {
+        guard let button = statusItem?.button else { return }
+        let image = NSImage(systemSymbolName: "bolt.slash.fill", accessibilityDescription: nil)
+        let iconConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        button.image = image?.withSymbolConfiguration(iconConfig)
+        button.image?.isTemplate = true
+        button.attributedTitle = NSAttributedString(string: " Found \(count)")
+    }
+
+    private func showConnectingState(_ server: DiscoveredServer) {
+        guard let button = statusItem?.button else { return }
+        let image = NSImage(systemSymbolName: "bolt.slash.fill", accessibilityDescription: nil)
+        let iconConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        button.image = image?.withSymbolConfiguration(iconConfig)
+        button.image?.isTemplate = true
+        button.attributedTitle = NSAttributedString(string: " Connecting...")
     }
 
     private func showServerPicker() {
@@ -155,9 +173,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.popover.performClose(nil)
             self?.browser?.stop()
             self?.browser = nil
+            self?.showConnectingState(server)
             self?.selectServer(server)
         }
         popover.contentViewController = NSHostingController(rootView: picker)
+        popover.contentSize = NSSize(width: 280, height: 0)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
 
