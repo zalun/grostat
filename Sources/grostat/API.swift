@@ -53,7 +53,7 @@ struct GrowattClient {
             } catch {
                 lastError = error
                 if attempt < retries {
-                    Log.warning("Attempt \(attempt + 1) failed: \(error). Retrying in 10s...")
+                    Log.warning("Attempt \(attempt + 1) failed: \(error.shortDescription). Retrying in 10s...")
                     Thread.sleep(forTimeInterval: 10)
                 }
             }

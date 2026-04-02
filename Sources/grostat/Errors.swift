@@ -13,3 +13,16 @@ enum GrostatError: Error, LocalizedError {
         }
     }
 }
+
+extension Error {
+    var shortDescription: String {
+        let nsError = self as NSError
+        if nsError.domain == NSURLErrorDomain {
+            return nsError.localizedDescription
+        }
+        if let localized = (self as? LocalizedError)?.errorDescription {
+            return localized
+        }
+        return localizedDescription
+    }
+}

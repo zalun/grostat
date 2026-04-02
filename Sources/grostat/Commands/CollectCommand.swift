@@ -54,7 +54,7 @@ struct CollectCommand: ParsableCommand {
         do {
             reading = try client.fetchLastData()
         } catch {
-            Log.error("Failed to fetch data: \(error)")
+            Log.warning("Failed to fetch data: \(error.shortDescription)")
             return false
         }
 
