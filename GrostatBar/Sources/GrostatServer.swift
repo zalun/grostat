@@ -91,6 +91,8 @@ final class GrostatServer {
             return handleStatus()
         case "/readings":
             return handleReadings(query: query)
+        case "/readings/daily":
+            return handleDailySummary(query: query)
         case "/config":
             return handleConfig()
         default:
@@ -124,13 +126,52 @@ final class GrostatServer {
         } else if let fromStr = query["from"], let toStr = query["to"],
                   let f = fmt.date(from: fromStr), let t = fmt.date(from: toStr) {
             from = f
-            to = Calendar.current.date(byAdding: .day, value: 1, to: t) ?? t
+            to = t
         } else {
             return httpResponse(status: 400, body: #"{"error":"Missing date or from/to parameters"}"#)
         }
 
         let readings = reader.readRange(from: from, to: to)
         guard let json = encodeJSON(readings) else {
+            return httpResponse(status: 500, body: #"{"error":"Encoding failed"}"#)
+        }
+        return httpResponse(status: 200, body: json)
+    }
+
+    private func handleDailySummary(query: [String: String]) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+
+        guard let fromStr = query["from"], let toStr = query["to"],
+              let from = fmt.date(from: fromStr), let to = fmt.date(from: toStr) else {
+            return httpResponse(status: 400, body: #"{"error":"Missing from/to parameters"}"#)
+        }
+
+        let readings = reader.readRange(from: from, to: to)
+
+        // Group by day, pick representative reading per day (max powerToday for energy, max pac for peak)
+        let cal = Calendar.current
+        var dailyBest: [DateComponents: InverterReading] = [:]
+        for r in readings {
+            guard let d = r.date else { continue }
+            let dayKey = cal.dateComponents([.year, .month, .day], from: d)
+            if let existing = dailyBest[dayKey] {
+                if r.powerToday > existing.powerToday || r.pac > existing.pac {
+                    dailyBest[dayKey] = r
+                }
+            } else {
+                dailyBest[dayKey] = r
+            }
+        }
+
+        let summary = dailyBest.sorted { lhs, rhs in
+            let ld = cal.date(from: lhs.key) ?? .distantPast
+            let rd = cal.date(from: rhs.key) ?? .distantPast
+            return ld < rd
+        }.map(\.value)
+
+        guard let json = encodeJSON(summary) else {
             return httpResponse(status: 500, body: #"{"error":"Encoding failed"}"#)
         }
         return httpResponse(status: 200, body: json)

@@ -80,7 +80,11 @@ final class RemoteReader: ReadingProvider {
         let fromStr = fmt.string(from: from)
         let toStr = fmt.string(from: to)
 
-        guard let url = URL(string: "http://\(host):\(port)/readings?from=\(fromStr)&to=\(toStr)") else { return [] }
+        // Use daily summary for ranges > 2 days (month/year views)
+        let days = Calendar.current.dateComponents([.day], from: from, to: to).day ?? 0
+        let endpoint = days > 2 ? "readings/daily" : "readings"
+
+        guard let url = URL(string: "http://\(host):\(port)/\(endpoint)?from=\(fromStr)&to=\(toStr)") else { return [] }
         var result: [InverterReading] = []
         let sem = DispatchSemaphore(value: 0)
 
