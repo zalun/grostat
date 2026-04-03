@@ -55,6 +55,11 @@ struct StatsView: View {
         .onChange(of: periodState.comparisonMode) { _ in reloadData() }
         .onChange(of: leftMetricRaw) { _ in reloadLeftData() }
         .onChange(of: rightMetricRaw) { _ in reloadRightData() }
+        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
+            if periodState.granularity == .day && Calendar.current.isDateInToday(periodState.selectedDate) {
+                reloadData()
+            }
+        }
     }
 
     private func reloadData() {
