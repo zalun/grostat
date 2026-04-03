@@ -10,7 +10,11 @@ MACOS="$CONTENTS/MacOS"
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS"
 
+RESOURCES="$CONTENTS/Resources"
+mkdir -p "$MACOS" "$RESOURCES"
+
 cp "$BINARY" "$MACOS/GrostatBar"
+cp "$(dirname "$0")/Sources/AppIcon.icns" "$RESOURCES/AppIcon.icns" 2>/dev/null || true
 
 cat > "$CONTENTS/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -33,6 +37,8 @@ cat > "$CONTENTS/Info.plist" << 'EOF'
     <string>APPL</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>LSUIElement</key>
     <true/>
 </dict>

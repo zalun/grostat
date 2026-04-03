@@ -67,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupClientMode() {
+        showConnectingState()
         if let serverAddr = config.server {
             connectToServer(serverAddr)
         } else {
@@ -83,18 +84,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         remote.onConnectionFailed = { [weak self] in
             self?.handleConnectionFailed()
         }
-        remote.fetchConfig()
 
-        // Apply remote config to local config for display
-        if let rc = remote.remoteConfig {
-            config.deviceSn = rc.deviceSn
-            config.ratedPowerW = rc.ratedPowerW
-            config.alertWarningV = rc.alertWarningV
-            config.alertCriticalV = rc.alertCriticalV
+        // Connect in background to avoid blocking the UI
+        DispatchQueue.global().async { [weak self] in
+            remote.fetchConfig()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let rc = remote.remoteConfig {
+                    self.config.deviceSn = rc.deviceSn
+                    self.config.ratedPowerW = rc.ratedPowerW
+                    self.config.alertWarningV = rc.alertWarningV
+                    self.config.alertCriticalV = rc.alertCriticalV
+                }
+                self.reader = remote
+                self.startRefreshLoop()
+            }
         }
-
-        reader = remote
-        startRefreshLoop()
     }
 
     private func startBrowsing() {
@@ -168,7 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.attributedTitle = NSAttributedString(string: " Select server")
     }
 
-    private func showConnectingState(_ server: DiscoveredServer) {
+    private func showConnectingState(_ server: DiscoveredServer? = nil) {
         guard let button = statusItem?.button else { return }
         let image = NSImage(systemSymbolName: "bolt.slash.fill", accessibilityDescription: nil)
         let iconConfig = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
@@ -240,8 +245,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentViewController = NSHostingController(rootView: view)
         window.center()
         window.isReleasedWhenClosed = false
-        window.makeKeyAndOrderFront(nil)
+
+        // Set app icon for CMD+TAB (loads from CFBundleIconFile in Info.plist)
+        if let iconPath = Bundle.main.path(forResource: "AppIcon", ofType: "icns"),
+           let icon = NSImage(contentsOfFile: iconPath) {
+            NSApp.applicationIconImage = icon
+        }
+
         NSApp.setActivationPolicy(.regular)
+        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
         NotificationCenter.default.addObserver(

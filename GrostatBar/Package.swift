@@ -14,6 +14,7 @@ let package = Package(
                 .product(name: "GrostatShared", package: "growatt-stats"),
             ],
             path: "Sources",
+            exclude: ["logo.png", "AppIcon.icns"],
             linkerSettings: [
                 .linkedLibrary("sqlite3"),
                 .linkedFramework("AppKit"),

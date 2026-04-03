@@ -122,14 +122,21 @@ struct StatusPopover: View {
     private var noData: some View {
         VStack(spacing: 8) {
             Spacer()
-            Image(systemName: "questionmark.circle")
+            Image(systemName: config.mode == .client ? "wifi.slash" : "questionmark.circle")
                 .font(.largeTitle)
                 .foregroundColor(.secondary)
             Text("No data")
                 .font(.headline)
-            Text("Is 'grostat collect' running?")
+            Text(config.mode == .client
+                ? "Cannot reach server"
+                : "Is 'grostat collect' running?")
                 .font(.caption)
                 .foregroundColor(.secondary)
+            if config.mode == .client, let server = config.server {
+                Text(server)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity)
