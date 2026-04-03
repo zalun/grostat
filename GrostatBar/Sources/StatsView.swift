@@ -50,16 +50,19 @@ struct StatsView: View {
         }
         .frame(minWidth: 700, minHeight: 550)
         .task { reloadData() }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000)
+                if periodState.granularity == .day && Calendar.current.isDateInToday(periodState.selectedDate) {
+                    reloadData()
+                }
+            }
+        }
         .onChange(of: periodState.granularity) { _ in reloadData() }
         .onChange(of: periodState.selectedDate) { _ in reloadData() }
         .onChange(of: periodState.comparisonMode) { _ in reloadData() }
         .onChange(of: leftMetricRaw) { _ in reloadLeftData() }
         .onChange(of: rightMetricRaw) { _ in reloadRightData() }
-        .onReceive(Timer.publish(every: 60, on: .main, in: .common).autoconnect()) { _ in
-            if periodState.granularity == .day && Calendar.current.isDateInToday(periodState.selectedDate) {
-                reloadData()
-            }
-        }
     }
 
     private func reloadData() {
