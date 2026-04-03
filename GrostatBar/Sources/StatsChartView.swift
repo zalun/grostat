@@ -9,6 +9,7 @@ struct StatsChartView: View {
     private let solarGold = Color(red: 0.95, green: 0.75, blue: 0.2)
     private let coolBlue = Color(red: 0.4, green: 0.6, blue: 0.85)
     private let maxGapSeconds: TimeInterval = 900
+    private let voltageCriticalThreshold: Double = 253
 
     private var yDomain: ClosedRange<Double> {
         let allValues = (data.primary.map(\.value) + data.comparison.map(\.value)).filter { $0 > 0 }
@@ -31,6 +32,12 @@ struct StatsChartView: View {
             } else {
                 primaryMarks
                 comparisonMarks
+            }
+
+            if metric == .voltage {
+                RuleMark(y: .value("Critical", voltageCriticalThreshold))
+                    .foregroundStyle(.red.opacity(0.6))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [6, 4]))
             }
 
             if let hover = hoverDate {
@@ -116,10 +123,12 @@ struct StatsChartView: View {
                 AreaMark(
                     x: .value("Time", point.date),
                     yStart: .value("Base", yDomain.lowerBound),
-                    yEnd: .value(metric.label, point.value)
+                    yEnd: .value(metric.label, point.value),
+                    series: .value("Series", "area\(idx)")
                 )
                 .foregroundStyle(solarGold.opacity(0.1))
                 .interpolationMethod(.catmullRom)
+
             }
         }
     }
