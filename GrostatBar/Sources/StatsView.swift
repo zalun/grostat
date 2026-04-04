@@ -40,20 +40,24 @@ struct StatsView: View {
                     }
 
                     HStack(spacing: 16) {
-                        chartPanel(metric: leftMetric, metricBinding: $leftMetricRaw, data: leftData)
-                        chartPanel(metric: rightMetric, metricBinding: $rightMetricRaw, data: rightData)
+                        chartPanel(
+                            metric: leftMetric, metricBinding: $leftMetricRaw, data: leftData)
+                        chartPanel(
+                            metric: rightMetric, metricBinding: $rightMetricRaw, data: rightData)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
                 }
             }
         }
-        .frame(minWidth: 700, minHeight: 550)
+        .frame(minWidth: 600, minHeight: 400)
         .task { reloadData() }
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 60_000_000_000)
-                if periodState.granularity == .day && Calendar.current.isDateInToday(periodState.selectedDate) {
+                if periodState.granularity == .day
+                    && Calendar.current.isDateInToday(periodState.selectedDate)
+                {
                     reloadData()
                 }
             }
@@ -88,7 +92,9 @@ struct StatsView: View {
         )
     }
 
-    private func chartPanel(metric: Metric, metricBinding: Binding<String>, data: ChartData?) -> some View {
+    private func chartPanel(metric: Metric, metricBinding: Binding<String>, data: ChartData?)
+        -> some View
+    {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Picker("", selection: metricBinding) {
@@ -146,11 +152,13 @@ struct StatsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(alerts) { alert in
                     HStack(spacing: 6) {
-                        Image(systemName: alert.severity == .critical
-                            ? "exclamationmark.triangle.fill"
-                            : "exclamationmark.circle.fill")
-                            .foregroundColor(alert.severity == .critical ? .red : .orange)
-                            .font(.caption)
+                        Image(
+                            systemName: alert.severity == .critical
+                                ? "exclamationmark.triangle.fill"
+                                : "exclamationmark.circle.fill"
+                        )
+                        .foregroundColor(alert.severity == .critical ? .red : .orange)
+                        .font(.caption)
                         Text(alert.message)
                             .font(.caption)
                         Spacer()
@@ -162,11 +170,13 @@ struct StatsView: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: hasCritical
-                    ? "exclamationmark.triangle.fill"
-                    : "exclamationmark.circle.fill")
-                    .foregroundColor(hasCritical ? .red : .orange)
-                    .font(.caption)
+                Image(
+                    systemName: hasCritical
+                        ? "exclamationmark.triangle.fill"
+                        : "exclamationmark.circle.fill"
+                )
+                .foregroundColor(hasCritical ? .red : .orange)
+                .font(.caption)
                 Text(summary)
                     .font(.caption)
             }
@@ -174,9 +184,10 @@ struct StatsView: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(hasCritical
-                    ? Color.red.opacity(0.1)
-                    : Color.orange.opacity(0.1))
+                .fill(
+                    hasCritical
+                        ? Color.red.opacity(0.1)
+                        : Color.orange.opacity(0.1))
         )
     }
 

@@ -5,7 +5,6 @@ struct StatusPopover: View {
     let reading: InverterReading?
     let config: BarConfig
     let onQuit: () -> Void
-    let onStats: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -53,12 +52,24 @@ struct StatusPopover: View {
         let label: String
         let color: Color
         switch state {
-        case .sleep: label = "SLEEP"; color = .gray
-        case .cloudy: label = "CLOUDY"; color = .blue
-        case .producing: label = "OK"; color = .green
-        case .onFire: label = "ON FIRE"; color = .orange
-        case .fault: label = "FAULT"; color = .red
-        case .offline: label = "OFFLINE"; color = .gray
+        case .sleep:
+            label = "SLEEP"
+            color = .gray
+        case .cloudy:
+            label = "CLOUDY"
+            color = .blue
+        case .producing:
+            label = "OK"
+            color = .green
+        case .onFire:
+            label = "ON FIRE"
+            color = .orange
+        case .fault:
+            label = "FAULT"
+            color = .red
+        case .offline:
+            label = "OFFLINE"
+            color = .gray
         }
         return Text(label)
             .font(.caption.bold())
@@ -127,11 +138,13 @@ struct StatusPopover: View {
                 .foregroundColor(.secondary)
             Text("No data")
                 .font(.headline)
-            Text(config.mode == .client
-                ? "Cannot reach server"
-                : "Is 'grostat collect' running?")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Text(
+                config.mode == .client
+                    ? "Cannot reach server"
+                    : "Is 'grostat collect' running?"
+            )
+            .font(.caption)
+            .foregroundColor(.secondary)
             if config.mode == .client, let server = config.server {
                 Text(server)
                     .font(.caption2)
@@ -147,10 +160,6 @@ struct StatusPopover: View {
 
     private var footer: some View {
         HStack {
-            Button("Statistics...") { onStats() }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
-                .padding(8)
             Spacer()
             Button("Quit") { onQuit() }
                 .buttonStyle(.plain)

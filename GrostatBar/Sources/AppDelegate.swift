@@ -10,7 +10,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private var latestReading: InverterReading?
     private var statsWindow: NSWindow?
+    private var periodState = PeriodState()
+    private var dataManager: StatsDataManager?
     private var server: GrostatServer?
+    private var popoverTab: PopoverTab = .statistics
     private var browser: ServerBrowser?
     private var discoveredServers: [DiscoveredServer] = []
 
@@ -39,7 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let appMenuItem = NSMenuItem()
         mainMenu.addItem(appMenuItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenu.addItem(
+            withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)),
+            keyEquivalent: "w")
         appMenuItem.submenu = appMenu
         NSApp.mainMenu = mainMenu
 
@@ -185,6 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Refresh loop
 
     private func startRefreshLoop() {
+        dataManager = StatsDataManager(reader: reader, config: config)
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             self?.refresh()
@@ -207,16 +213,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             }
         } else {
-            let view = StatusPopover(
-                reading: latestReading,
-                config: config,
-                onQuit: { NSApp.terminate(nil) },
-                onStats: { [weak self] in self?.showStatsWindow() }
-            )
-            popover.contentViewController = NSHostingController(rootView: view)
-            if let button = statusItem.button {
-                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popoverTab = .statistics
+            showPopoverContent()
+        }
+    }
+
+    private func showPopoverContent() {
+        guard let dm = dataManager else { return }
+        let tabBinding = Binding<PopoverTab>(
+            get: { [weak self] in self?.popoverTab ?? .statistics },
+            set: { [weak self] newTab in
+                self?.popoverTab = newTab
+                self?.updatePopoverSize(for: newTab)
             }
+        )
+        let view = PopoverContentView(
+            activeTab: tabBinding,
+            periodState: periodState,
+            dataManager: dm,
+            reading: latestReading,
+            config: config,
+            onQuit: { NSApp.terminate(nil) },
+            onDetach: { [weak self] in self?.showStatsWindow() }
+        )
+        popover.contentSize = popoverSize(for: popoverTab)
+        popover.contentViewController = NSHostingController(rootView: view)
+        if let button = statusItem.button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+    }
+
+    private func popoverSize(for tab: PopoverTab) -> NSSize {
+        switch tab {
+        case .statistics: return NSSize(width: 820, height: 520)
+        case .status: return NSSize(width: 320, height: 480)
+        }
+    }
+
+    private func updatePopoverSize(for tab: PopoverTab) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.25
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            popover.contentSize = popoverSize(for: tab)
         }
     }
 
@@ -230,9 +268,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let periodState = PeriodState()
-        let dataManager = StatsDataManager(reader: reader, config: config)
-        let view = StatsView(periodState: periodState, dataManager: dataManager)
+        let dm = dataManager ?? StatsDataManager(reader: reader, config: config)
+        let view = StatsView(periodState: periodState, dataManager: dm)
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 700),
@@ -248,7 +285,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Set app icon for CMD+TAB (loads from CFBundleIconFile in Info.plist)
         if let iconPath = Bundle.main.path(forResource: "AppIcon", ofType: "icns"),
-           let icon = NSImage(contentsOfFile: iconPath) {
+            let icon = NSImage(contentsOfFile: iconPath)
+        {
             NSApp.applicationIconImage = icon
         }
 

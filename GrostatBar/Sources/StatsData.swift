@@ -249,8 +249,6 @@ final class StatsDataManager {
             let sev: PeriodAlert.Severity?
             if r.vmaxPhase >= config.alertCriticalV {
                 sev = .critical
-            } else if r.vmaxPhase >= config.alertWarningV {
-                sev = .warning
             } else {
                 sev = nil
             }
