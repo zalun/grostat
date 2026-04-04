@@ -13,7 +13,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var periodState = PeriodState()
     private var dataManager: StatsDataManager?
     private var server: GrostatServer?
-    private var popoverTab: PopoverTab = .statistics
     private var browser: ServerBrowser?
     private var discoveredServers: [DiscoveredServer] = []
 
@@ -213,48 +212,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             }
         } else {
-            popoverTab = .statistics
-            showPopoverContent()
+            showStatsPopover()
         }
     }
 
-    private func showPopoverContent() {
+    private func showStatsPopover() {
         guard let dm = dataManager else { return }
-        let tabBinding = Binding<PopoverTab>(
-            get: { [weak self] in self?.popoverTab ?? .statistics },
-            set: { [weak self] newTab in
-                self?.popoverTab = newTab
-                self?.updatePopoverSize(for: newTab)
-            }
-        )
-        let view = PopoverContentView(
-            activeTab: tabBinding,
+        let view = StatsPopoverView(
             periodState: periodState,
             dataManager: dm,
-            reading: latestReading,
-            config: config,
-            onQuit: { NSApp.terminate(nil) },
-            onDetach: { [weak self] in self?.showStatsWindow() }
+            onDetach: { [weak self] in self?.showStatsWindow() },
+            onQuit: { NSApp.terminate(nil) }
         )
-        popover.contentSize = popoverSize(for: popoverTab)
+        popover.contentSize = NSSize(width: 820, height: 520)
         popover.contentViewController = NSHostingController(rootView: view)
         if let button = statusItem.button {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        }
-    }
-
-    private func popoverSize(for tab: PopoverTab) -> NSSize {
-        switch tab {
-        case .statistics: return NSSize(width: 820, height: 520)
-        case .status: return NSSize(width: 320, height: 480)
-        }
-    }
-
-    private func updatePopoverSize(for tab: PopoverTab) {
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.25
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            popover.contentSize = popoverSize(for: tab)
         }
     }
 
