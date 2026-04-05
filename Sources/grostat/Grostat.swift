@@ -18,6 +18,7 @@ struct Grostat: ParsableCommand {
             ScheduleCommand.self,
             UnscheduleCommand.self,
             ConfigCommand.self,
+            QueryHistoricalDataCommand.self,
         ]
     )
 }

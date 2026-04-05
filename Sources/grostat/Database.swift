@@ -31,7 +31,8 @@ final class Database {
             return "\(name) REAL"
         }.joined(separator: ", ")
 
-        exec("""
+        exec(
+            """
             CREATE TABLE IF NOT EXISTS readings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 \(cols)
@@ -80,8 +81,16 @@ final class Database {
     }
 
     func getReadingsForDate(_ date: String) -> [[String: Any]] {
-        query("SELECT * FROM readings WHERE timestamp LIKE ? ORDER BY timestamp",
-              params: ["\(date)%"])
+        query(
+            "SELECT * FROM readings WHERE timestamp LIKE ? ORDER BY timestamp",
+            params: ["\(date)%"])
+    }
+
+    func hasTimestamp(_ timestamp: String) -> Bool {
+        let rows = query(
+            "SELECT COUNT(*) as cnt FROM readings WHERE timestamp = ?",
+            params: [timestamp])
+        return (rows.first?["cnt"] as? Int ?? 0) > 0
     }
 
     func getRowCount() -> Int {
@@ -131,7 +140,8 @@ final class Database {
         defer { sqlite3_finalize(stmt) }
 
         for (i, param) in params.enumerated() {
-            sqlite3_bind_text(stmt, Int32(i + 1), (param as NSString).utf8String, -1, SQLITE_TRANSIENT)
+            sqlite3_bind_text(
+                stmt, Int32(i + 1), (param as NSString).utf8String, -1, SQLITE_TRANSIENT)
         }
 
         var results: [[String: Any]] = []

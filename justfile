@@ -42,9 +42,16 @@ build-app:
 # Build CLI + app and install locally
 install: release build-app
     cp .build/release/grostat ~/.local/bin/grostat
+    -pkill -x GrostatBar 2>/dev/null; sleep 1
     rm -rf /Applications/GrostatBar.app
     cp -r GrostatBar/GrostatBar.app /Applications/GrostatBar.app
+    open /Applications/GrostatBar.app
     @echo "Installed grostat to ~/.local/bin/ and GrostatBar.app to /Applications/"
+
+# Restart GrostatBar client
+restart-client:
+    -pkill -x GrostatBar 2>/dev/null; sleep 1
+    open /Applications/GrostatBar.app
 
 # Build everything and create release tarball (CLI + app)
 tarball VERSION: release build-app

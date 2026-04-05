@@ -12,7 +12,23 @@ struct GrowattClient {
         return InverterReading.fromAPI(first)
     }
 
-    private func apiCall(endpoint: String, retries: Int = 2) throws -> [String: Any] {
+    func fetchHistoricalData(date: String) throws -> [[String: Any]] {
+        let data = try apiCall(
+            endpoint: "queryHistoricalData",
+            extraParams: "&date=\(date)"
+        )
+        if let datas = data["datas"] as? [[String: Any]] {
+            return datas
+        }
+        if let inv = data["inv"] as? [[String: Any]] {
+            return inv
+        }
+        return []
+    }
+
+    private func apiCall(endpoint: String, extraParams: String = "", retries: Int = 2) throws
+        -> [String: Any]
+    {
         let urlString = "\(config.apiBase)/\(endpoint)"
         guard let url = URL(string: urlString) else {
             throw GrostatError.api("Invalid URL: \(urlString)")
@@ -29,7 +45,7 @@ struct GrowattClient {
                     "application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
                 request.timeoutInterval = 15
 
-                let body = "deviceType=inv&deviceSn=\(config.deviceSn)"
+                let body = "deviceType=inv&deviceSn=\(config.deviceSn)\(extraParams)"
                 request.httpBody = body.data(using: .utf8)
 
                 let (data, response) = try syncRequest(request)
@@ -53,7 +69,9 @@ struct GrowattClient {
             } catch {
                 lastError = error
                 if attempt < retries {
-                    Log.warning("Attempt \(attempt + 1) failed: \(error.shortDescription). Retrying in 10s...")
+                    Log.warning(
+                        "Attempt \(attempt + 1) failed: \(error.shortDescription). Retrying in 10s..."
+                    )
                     Thread.sleep(forTimeInterval: 10)
                 }
             }

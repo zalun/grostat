@@ -2,8 +2,8 @@ import Foundation
 import GrostatShared
 
 extension InverterReading {
-    static func fromAPI(_ data: [String: Any]) -> InverterReading {
-        let ts = ISO8601DateFormatter.localFormatter.string(from: Date())
+    static func fromAPI(_ data: [String: Any], timestamp: String? = nil) -> InverterReading {
+        let ts = timestamp ?? ISO8601DateFormatter.localFormatter.string(from: Date())
 
         let vacr = data.double("vacr")
         let vacs = data.double("vacs")

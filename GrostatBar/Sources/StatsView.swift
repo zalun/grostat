@@ -6,6 +6,13 @@ struct StatsView: View {
 
     @AppStorage("stats.leftMetric") private var leftMetricRaw: String = Metric.powerDC.rawValue
     @AppStorage("stats.rightMetric") private var rightMetricRaw: String = Metric.voltage.rawValue
+    @AppStorage("stats.leftMetric.day") private var dayLeftMetric: String = Metric.powerDC.rawValue
+    @AppStorage("stats.rightMetric.day") private var dayRightMetric: String = Metric.voltage
+        .rawValue
+    @AppStorage("stats.leftMetric.summary") private var summaryLeftMetric: String = Metric.energy
+        .rawValue
+    @AppStorage("stats.rightMetric.summary") private var summaryRightMetric: String = Metric
+        .peakPower.rawValue
 
     @State private var leftData: ChartData?
     @State private var rightData: ChartData?
@@ -68,8 +75,14 @@ struct StatsView: View {
         }
         .onChange(of: periodState.selectedDate) { _ in reloadData() }
         .onChange(of: periodState.comparisonMode) { _ in reloadData() }
-        .onChange(of: leftMetricRaw) { _ in reloadLeftData() }
-        .onChange(of: rightMetricRaw) { _ in reloadRightData() }
+        .onChange(of: leftMetricRaw) { _ in
+            saveCurrentMetrics()
+            reloadLeftData()
+        }
+        .onChange(of: rightMetricRaw) { _ in
+            saveCurrentMetrics()
+            reloadRightData()
+        }
     }
 
     private var availableMetrics: [Metric] {
@@ -77,14 +90,35 @@ struct StatsView: View {
     }
 
     private func adjustMetricsForGranularity() {
+        let nowSummary = periodState.granularity.usesSummaries
         let available = availableMetrics
-        if !available.contains(leftMetric) {
-            leftMetricRaw = available.first?.rawValue ?? Metric.energy.rawValue
+
+        // If current metrics are valid for the new granularity, nothing to do
+        if available.contains(leftMetric) && available.contains(rightMetric) { return }
+
+        // Save current metrics to the slot we're leaving
+        if nowSummary {
+            // We're switching TO summary, so current values are day metrics
+            dayLeftMetric = leftMetricRaw
+            dayRightMetric = rightMetricRaw
+            leftMetricRaw = summaryLeftMetric
+            rightMetricRaw = summaryRightMetric
+        } else {
+            // We're switching TO day, so current values are summary metrics
+            summaryLeftMetric = leftMetricRaw
+            summaryRightMetric = rightMetricRaw
+            leftMetricRaw = dayLeftMetric
+            rightMetricRaw = dayRightMetric
         }
-        if !available.contains(rightMetric) {
-            rightMetricRaw =
-                (available.count > 1 ? available[1] : available.first)?.rawValue
-                ?? Metric.energy.rawValue
+    }
+
+    private func saveCurrentMetrics() {
+        if periodState.granularity.usesSummaries {
+            summaryLeftMetric = leftMetricRaw
+            summaryRightMetric = rightMetricRaw
+        } else {
+            dayLeftMetric = leftMetricRaw
+            dayRightMetric = rightMetricRaw
         }
     }
 

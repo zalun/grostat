@@ -131,7 +131,11 @@ final class RemoteReader: ReadingProvider {
             guard let http = response as? HTTPURLResponse, http.statusCode == 200, let data else {
                 return
             }
-            result = (try? self.decoder.decode([PeriodSummary].self, from: data)) ?? []
+            do {
+                result = try self.decoder.decode([PeriodSummary].self, from: data)
+            } catch {
+                log.error("Failed to decode summaries: \(error)")
+            }
             self.failCount = 0
         }.resume()
         sem.wait()

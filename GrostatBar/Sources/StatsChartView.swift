@@ -12,13 +12,21 @@ struct StatsChartView: View {
     private let maxGapSeconds: TimeInterval = 900
     private let voltageCriticalThreshold: Double = 253
 
+    private var zoomsYAxis: Bool {
+        switch metric {
+        case .voltage, .peakVoltage, .temperature, .peakTemp:
+            return true
+        default:
+            return false
+        }
+    }
+
     private var yDomain: ClosedRange<Double> {
         let allValues = (data.primary.map(\.value) + data.comparison.map(\.value)).filter { $0 > 0 }
         guard let minVal = allValues.min(), let maxVal = allValues.max(), maxVal > 0 else {
             return 0...1
         }
-        // If min > 10% of max, zoom in (e.g. voltage 230-260V)
-        if minVal > maxVal * 0.1 {
+        if zoomsYAxis && minVal > maxVal * 0.1 {
             let range = maxVal - minVal
             let padding = max(range * 0.1, 1)
             return max(0, minVal - padding)...(maxVal + padding)
@@ -28,14 +36,17 @@ struct StatsChartView: View {
 
     var body: some View {
         Chart {
-            if metric == .powerPerString {
+            if granularity.usesSummaries {
+                summaryPrimaryMarks
+                summaryComparisonMarks
+            } else if metric == .powerPerString {
                 powerPerStringMarks
             } else {
                 primaryMarks
                 comparisonMarks
             }
 
-            if metric == .voltage {
+            if metric == .voltage || metric == .peakVoltage {
                 RuleMark(y: .value("Critical", voltageCriticalThreshold))
                     .foregroundStyle(.red.opacity(0.6))
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [6, 4]))
@@ -82,14 +93,28 @@ struct StatsChartView: View {
                                 return
                             }
                             if let date: Date = proxy.value(atX: plotX) {
-                                // Clamp to data range to prevent chart expansion
-                                if let mn = data.primary.first?.date,
-                                    let mx = data.primary.last?.date,
-                                    date >= mn && date <= mx
-                                {
-                                    hoverDate = date
+                                if granularity.usesSummaries {
+                                    // Find bar containing cursor, snap to its center
+                                    let barSpan: TimeInterval =
+                                        granularity == .yearMonthly ? 86400 * 30 : 86400
+                                    if let p = data.primary.first(where: {
+                                        date >= $0.date
+                                            && date < $0.date.addingTimeInterval(barSpan)
+                                    }) {
+                                        hoverDate = p.date.addingTimeInterval(barSpan / 2)
+                                    } else {
+                                        hoverDate = nil
+                                    }
                                 } else {
-                                    hoverDate = nil
+                                    // Clamp to data range to prevent chart expansion
+                                    if let mn = data.primary.first?.date,
+                                        let mx = data.primary.last?.date,
+                                        date >= mn && date <= mx
+                                    {
+                                        hoverDate = date
+                                    } else {
+                                        hoverDate = nil
+                                    }
                                 }
                             }
                         case .ended:
@@ -151,6 +176,49 @@ struct StatsChartView: View {
                 .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
                 .interpolationMethod(.catmullRom)
             }
+        }
+    }
+
+    // MARK: - Summary marks (bar charts)
+
+    private func isIncompletePeriod(_ date: Date) -> Bool {
+        let cal = Calendar.current
+        switch granularity {
+        case .day:
+            return false
+        case .week, .month:
+            // Each bar = one day; only today is incomplete
+            return cal.isDateInToday(date)
+        case .yearWeekly:
+            return cal.isDate(date, equalTo: Date(), toGranularity: .weekOfYear)
+        case .yearMonthly:
+            return cal.isDate(date, equalTo: Date(), toGranularity: .month)
+        }
+    }
+
+    @ChartContentBuilder
+    private var summaryPrimaryMarks: some ChartContent {
+        ForEach(data.primary) { point in
+            BarMark(
+                x: .value("Date", point.date, unit: granularity == .yearMonthly ? .month : .day),
+                yStart: .value("Base", yDomain.lowerBound),
+                yEnd: .value(metric.label, point.value)
+            )
+            .foregroundStyle(isIncompletePeriod(point.date) ? solarGold.opacity(0.5) : solarGold)
+            .position(by: .value("Period", "current"))
+        }
+    }
+
+    @ChartContentBuilder
+    private var summaryComparisonMarks: some ChartContent {
+        ForEach(data.comparison) { point in
+            BarMark(
+                x: .value("Date", point.date, unit: granularity == .yearMonthly ? .month : .day),
+                yStart: .value("Base", yDomain.lowerBound),
+                yEnd: .value(metric.label, point.value)
+            )
+            .position(by: .value("Period", "comparison"))
+            .foregroundStyle(coolBlue.opacity(0.5))
         }
     }
 
@@ -238,13 +306,17 @@ struct StatsChartView: View {
         }
     }
 
-    private func nearestValue(in points: [DataPoint], to date: Date) -> Double? {
+    private func nearestPoint(in points: [DataPoint], to date: Date) -> DataPoint? {
         guard !points.isEmpty else { return nil }
         let nearest = points.min(by: {
             abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
         })
-        guard let p = nearest, abs(p.date.timeIntervalSince(date)) < 86400 else { return nil }
-        return p.value
+        guard let p = nearest, abs(p.date.timeIntervalSince(date)) < 86400 * 32 else { return nil }
+        return p
+    }
+
+    private func nearestValue(in points: [DataPoint], to date: Date) -> Double? {
+        nearestPoint(in: points, to: date)?.value
     }
 
     private func formatValue(_ v: Double, metric: Metric) -> String {
