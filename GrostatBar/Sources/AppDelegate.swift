@@ -217,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showStatsPopover() {
+        periodState.resetToCurrentPeriodIfNeeded()
         guard let dm = dataManager else { return }
         let view = StatsPopoverView(
             periodState: periodState,

@@ -1,5 +1,5 @@
-import Foundation
 import Combine
+import Foundation
 
 final class PeriodState: ObservableObject {
     private enum Keys {
@@ -12,23 +12,36 @@ final class PeriodState: ObservableObject {
         didSet { UserDefaults.standard.set(granularity.rawValue, forKey: Keys.granularity) }
     }
     @Published var selectedDate: Date {
-        didSet { UserDefaults.standard.set(selectedDate.timeIntervalSince1970, forKey: Keys.selectedDate) }
+        didSet {
+            UserDefaults.standard.set(selectedDate.timeIntervalSince1970, forKey: Keys.selectedDate)
+        }
     }
     @Published var comparisonMode: ComparisonMode {
         didSet { UserDefaults.standard.set(comparisonMode.rawValue, forKey: Keys.comparisonMode) }
     }
 
     init() {
-        let g = UserDefaults.standard.string(forKey: Keys.granularity)
+        let g =
+            UserDefaults.standard.string(forKey: Keys.granularity)
             .flatMap { Granularity(rawValue: $0) } ?? .day
         let ts = UserDefaults.standard.double(forKey: Keys.selectedDate)
         let d = ts > 0 ? Date(timeIntervalSince1970: ts) : Date()
-        let cm = UserDefaults.standard.string(forKey: Keys.comparisonMode)
+        let cm =
+            UserDefaults.standard.string(forKey: Keys.comparisonMode)
             .flatMap { ComparisonMode(rawValue: $0) } ?? .previousPeriod
 
         self.granularity = g
         self.selectedDate = d
         self.comparisonMode = cm
+    }
+
+    func resetToCurrentPeriodIfNeeded() {
+        let now = Date()
+        if !Calendar.current.isDate(
+            selectedDate, equalTo: now, toGranularity: granularity.calendarComponent)
+        {
+            selectedDate = now
+        }
     }
 
     func stepForward() {
@@ -40,26 +53,39 @@ final class PeriodState: ObservableObject {
     }
 
     private func step(by value: Int) -> Date {
-        Calendar.current.date(byAdding: granularity.calendarComponent, value: value, to: selectedDate) ?? selectedDate
+        Calendar.current.date(
+            byAdding: granularity.calendarComponent, value: value, to: selectedDate) ?? selectedDate
     }
 
     private static let dayFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
     }()
     private static let weekStartFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "MMM d"; return f
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
     }()
     private static let weekEndSameMonthFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "d, yyyy"; return f
+        let f = DateFormatter()
+        f.dateFormat = "d, yyyy"
+        return f
     }()
     private static let weekEndCrossMonthFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "MMM d, yyyy"; return f
+        let f = DateFormatter()
+        f.dateFormat = "MMM d, yyyy"
+        return f
     }()
     private static let monthFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "MMMM yyyy"; return f
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f
     }()
     private static let yearFmt: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "yyyy"; return f
+        let f = DateFormatter()
+        f.dateFormat = "yyyy"
+        return f
     }()
 
     var periodLabel: String {
@@ -71,7 +97,8 @@ final class PeriodState: ObservableObject {
             let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: selectedDate)
             let weekStart = cal.date(from: comps) ?? selectedDate
             let weekEnd = cal.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
-            let endFmt = cal.component(.month, from: weekStart) == cal.component(.month, from: weekEnd)
+            let endFmt =
+                cal.component(.month, from: weekStart) == cal.component(.month, from: weekEnd)
                 ? Self.weekEndSameMonthFmt : Self.weekEndCrossMonthFmt
             return "\(Self.weekStartFmt.string(from: weekStart)) – \(endFmt.string(from: weekEnd))"
         case .month:
