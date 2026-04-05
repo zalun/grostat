@@ -103,7 +103,7 @@ final class PeriodState: ObservableObject {
             return "\(Self.weekStartFmt.string(from: weekStart)) – \(endFmt.string(from: weekEnd))"
         case .month:
             return Self.monthFmt.string(from: selectedDate)
-        case .year:
+        case .yearWeekly, .yearMonthly:
             return Self.yearFmt.string(from: selectedDate)
         }
     }

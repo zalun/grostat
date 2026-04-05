@@ -19,7 +19,8 @@ final class GrostatServer {
     func start() {
         do {
             let params = NWParameters.tcp
-            listener = try NWListener(using: params, on: NWEndpoint.Port(integerLiteral: UInt16(config.serverPort)))
+            listener = try NWListener(
+                using: params, on: NWEndpoint.Port(integerLiteral: UInt16(config.serverPort)))
         } catch {
             log.error("Failed to create listener: \(error.localizedDescription)")
             return
@@ -30,7 +31,8 @@ final class GrostatServer {
             "device_sn": config.deviceSn,
             "version": "1",
         ])
-        listener?.service = NWListener.Service(name: nil, type: "_grostat._tcp", txtRecord: txtRecord)
+        listener?.service = NWListener.Service(
+            name: nil, type: "_grostat._tcp", txtRecord: txtRecord)
 
         listener?.stateUpdateHandler = { state in
             switch state {
@@ -59,16 +61,19 @@ final class GrostatServer {
 
     private func handleConnection(_ connection: NWConnection) {
         connection.start(queue: queue)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] data, _, _, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) {
+            [weak self] data, _, _, error in
             guard let self, let data, error == nil else {
                 connection.cancel()
                 return
             }
             let request = String(data: data, encoding: .utf8) ?? ""
             let response = self.route(request)
-            connection.send(content: response.data(using: .utf8), completion: .contentProcessed { _ in
-                connection.cancel()
-            })
+            connection.send(
+                content: response.data(using: .utf8),
+                completion: .contentProcessed { _ in
+                    connection.cancel()
+                })
         }
     }
 
@@ -91,8 +96,12 @@ final class GrostatServer {
             return handleStatus()
         case "/readings":
             return handleReadings(query: query)
-        case "/readings/daily":
-            return handleDailySummary(query: query)
+        case "/summary/daily":
+            return handleSummary(query: query, grouping: .daily)
+        case "/summary/weekly":
+            return handleSummary(query: query, grouping: .weekly)
+        case "/summary/monthly":
+            return handleSummary(query: query, grouping: .monthly)
         case "/config":
             return handleConfig()
         default:
@@ -124,11 +133,13 @@ final class GrostatServer {
             from = d
             to = Calendar.current.date(byAdding: .day, value: 1, to: d) ?? d
         } else if let fromStr = query["from"], let toStr = query["to"],
-                  let f = fmt.date(from: fromStr), let t = fmt.date(from: toStr) {
+            let f = fmt.date(from: fromStr), let t = fmt.date(from: toStr)
+        {
             from = f
             to = t
         } else {
-            return httpResponse(status: 400, body: #"{"error":"Missing date or from/to parameters"}"#)
+            return httpResponse(
+                status: 400, body: #"{"error":"Missing date or from/to parameters"}"#)
         }
 
         let readings = reader.readRange(from: from, to: to)
@@ -138,43 +149,81 @@ final class GrostatServer {
         return httpResponse(status: 200, body: json)
     }
 
-    private func handleDailySummary(query: [String: String]) -> String {
+    private enum SummaryGrouping { case daily, weekly, monthly }
+
+    private func handleSummary(query: [String: String], grouping: SummaryGrouping) -> String {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy-MM-dd"
         fmt.locale = Locale(identifier: "en_US_POSIX")
 
         guard let fromStr = query["from"], let toStr = query["to"],
-              let from = fmt.date(from: fromStr), let to = fmt.date(from: toStr) else {
+            let from = fmt.date(from: fromStr), let to = fmt.date(from: toStr)
+        else {
             return httpResponse(status: 400, body: #"{"error":"Missing from/to parameters"}"#)
         }
 
-        let readings = reader.readRange(from: from, to: to)
+        // Always start from daily summaries
+        let dailySummaries = reader.readDailySummaries(from: from, to: to)
 
-        // Group by day, pick representative reading per day (max powerToday for energy, max pac for peak)
-        let cal = Calendar.current
-        var dailyBest: [DateComponents: InverterReading] = [:]
-        for r in readings {
-            guard let d = r.date else { continue }
-            let dayKey = cal.dateComponents([.year, .month, .day], from: d)
-            if let existing = dailyBest[dayKey] {
-                if r.powerToday > existing.powerToday || r.pac > existing.pac {
-                    dailyBest[dayKey] = r
-                }
-            } else {
-                dailyBest[dayKey] = r
-            }
+        let result: [PeriodSummary]
+        switch grouping {
+        case .daily:
+            result = dailySummaries
+        case .weekly:
+            result = aggregateSummaries(
+                dailySummaries, components: [.yearForWeekOfYear, .weekOfYear])
+        case .monthly:
+            result = aggregateSummaries(dailySummaries, components: [.year, .month])
         }
 
-        let summary = dailyBest.sorted { lhs, rhs in
-            let ld = cal.date(from: lhs.key) ?? .distantPast
-            let rd = cal.date(from: rhs.key) ?? .distantPast
-            return ld < rd
-        }.map(\.value)
-
-        guard let json = encodeJSON(summary) else {
+        guard let json = encodeJSON(result) else {
             return httpResponse(status: 500, body: #"{"error":"Encoding failed"}"#)
         }
         return httpResponse(status: 200, body: json)
+    }
+
+    private func aggregateSummaries(
+        _ summaries: [PeriodSummary], components: Set<Calendar.Component>
+    ) -> [PeriodSummary] {
+        let cal = Calendar.current
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+
+        var grouped: [(key: DateComponents, items: [PeriodSummary])] = []
+        var currentKey: DateComponents?
+        var currentItems: [PeriodSummary] = []
+
+        for s in summaries {
+            guard let d = s.date else { continue }
+            let key = cal.dateComponents(components, from: d)
+            if key == currentKey {
+                currentItems.append(s)
+            } else {
+                if let k = currentKey, !currentItems.isEmpty {
+                    grouped.append((key: k, items: currentItems))
+                }
+                currentKey = key
+                currentItems = [s]
+            }
+        }
+        if let k = currentKey, !currentItems.isEmpty {
+            grouped.append((key: k, items: currentItems))
+        }
+
+        return grouped.compactMap { (key, items) in
+            guard let periodDate = cal.date(from: key) else { return nil }
+            return PeriodSummary(
+                periodStart: fmt.string(from: periodDate),
+                totalEnergy: items.map(\.totalEnergy).reduce(0, +),
+                peakPowerAC: items.map(\.peakPowerAC).max() ?? 0,
+                peakPowerDC: items.map(\.peakPowerDC).max() ?? 0,
+                peakVoltage: items.map(\.peakVoltage).max() ?? 0,
+                maxTemperature: items.map(\.maxTemperature).max() ?? 0,
+                peakPpv1: items.map(\.peakPpv1).max() ?? 0,
+                peakPpv2: items.map(\.peakPpv2).max() ?? 0
+            )
+        }
     }
 
     private func handleConfig() -> String {
@@ -185,7 +234,8 @@ final class GrostatServer {
             "alert_critical_v": config.alertCriticalV,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: configData),
-              let json = String(data: data, encoding: .utf8) else {
+            let json = String(data: data, encoding: .utf8)
+        else {
             return httpResponse(status: 500, body: #"{"error":"Encoding failed"}"#)
         }
         return httpResponse(status: 200, body: json)

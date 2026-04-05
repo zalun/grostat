@@ -1,7 +1,7 @@
 import Foundation
 import GrostatShared
-import os
 import SQLite3
+import os
 
 private let log = Logger(subsystem: "com.grostat.bar", category: "StatusReader")
 
@@ -17,7 +17,8 @@ final class StatusReader: ReadingProvider {
 
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            log.error("Failed to open database at \(self.dbPath): \(String(cString: sqlite3_errmsg(db)))")
+            log.error(
+                "Failed to open database at \(self.dbPath): \(String(cString: sqlite3_errmsg(db)))")
             sqlite3_close(db)
             return nil
         }
@@ -42,7 +43,8 @@ final class StatusReader: ReadingProvider {
 
         var db: OpaquePointer?
         guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            log.error("Failed to open database at \(self.dbPath): \(String(cString: sqlite3_errmsg(db)))")
+            log.error(
+                "Failed to open database at \(self.dbPath): \(String(cString: sqlite3_errmsg(db)))")
             sqlite3_close(db)
             return []
         }
@@ -54,7 +56,8 @@ final class StatusReader: ReadingProvider {
         let fromStr = fmt.string(from: from)
         let toStr = fmt.string(from: to)
 
-        let sql = "SELECT * FROM readings WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp ASC"
+        let sql =
+            "SELECT * FROM readings WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp ASC"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
             log.error("Failed to prepare range query: \(String(cString: sqlite3_errmsg(db)))")
@@ -72,6 +75,58 @@ final class StatusReader: ReadingProvider {
             results.append(readingFromRow(stmt, map))
         }
         return results
+    }
+
+    func readDailySummaries(from: Date, to: Date) -> [PeriodSummary] {
+        let readings = readRange(from: from, to: to)
+        return Self.buildDailySummaries(from: readings)
+    }
+
+    static func buildDailySummaries(from readings: [InverterReading]) -> [PeriodSummary] {
+        let cal = Calendar.current
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+
+        // Group readings by day
+        var grouped: [(key: DateComponents, readings: [InverterReading])] = []
+        var current: (key: DateComponents, readings: [InverterReading])?
+        for r in readings {
+            guard let d = r.date else { continue }
+            let dayKey = cal.dateComponents([.year, .month, .day], from: d)
+            if let c = current, c.key == dayKey {
+                current!.readings.append(r)
+            } else {
+                if let c = current { grouped.append(c) }
+                current = (key: dayKey, readings: [r])
+            }
+        }
+        if let c = current { grouped.append(c) }
+
+        return grouped.compactMap { (dayKey, dayReadings) in
+            guard let dayDate = cal.date(from: dayKey) else { return nil }
+
+            // Energy: max powerToday after last reset
+            let powerValues = dayReadings.map(\.powerToday)
+            var lastResetIdx = 0
+            for i in 1..<powerValues.count {
+                if powerValues[i] < powerValues[i - 1] * 0.5 && powerValues[i - 1] > 1 {
+                    lastResetIdx = i
+                }
+            }
+            let energy = powerValues[lastResetIdx...].max() ?? 0
+
+            return PeriodSummary(
+                periodStart: fmt.string(from: dayDate),
+                totalEnergy: energy,
+                peakPowerAC: dayReadings.map(\.pac).max().map { $0 / 1000.0 } ?? 0,
+                peakPowerDC: dayReadings.map(\.ppv).max().map { $0 / 1000.0 } ?? 0,
+                peakVoltage: dayReadings.map(\.vmaxPhase).max() ?? 0,
+                maxTemperature: dayReadings.map(\.temperature).max() ?? 0,
+                peakPpv1: dayReadings.map(\.ppv1).max().map { $0 / 1000.0 } ?? 0,
+                peakPpv2: dayReadings.map(\.ppv2).max().map { $0 / 1000.0 } ?? 0
+            )
+        }
     }
 
     // MARK: - Column helpers

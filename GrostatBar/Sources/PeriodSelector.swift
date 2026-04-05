@@ -11,7 +11,7 @@ struct PeriodSelector: View {
                 }
             }
             .labelsHidden()
-            .frame(width: 80)
+            .frame(width: 90)
 
             HStack(spacing: 4) {
                 Button(action: state.stepBack) {

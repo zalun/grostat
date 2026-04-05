@@ -4,7 +4,7 @@ import GrostatShared
 // MARK: - Granularity
 
 enum Granularity: String, CaseIterable, Identifiable {
-    case day, week, month, year
+    case day, week, month, yearWeekly, yearMonthly
     var id: String { rawValue }
 
     var label: String {
@@ -12,7 +12,8 @@ enum Granularity: String, CaseIterable, Identifiable {
         case .day: return "Day"
         case .week: return "Week"
         case .month: return "Month"
-        case .year: return "Year"
+        case .yearWeekly: return "Year-W"
+        case .yearMonthly: return "Year-M"
         }
     }
 
@@ -21,7 +22,20 @@ enum Granularity: String, CaseIterable, Identifiable {
         case .day: return .day
         case .week: return .weekOfYear
         case .month: return .month
-        case .year: return .year
+        case .yearWeekly, .yearMonthly: return .year
+        }
+    }
+
+    var usesSummaries: Bool {
+        self != .day
+    }
+
+    var summaryEndpoint: String? {
+        switch self {
+        case .day: return nil
+        case .week, .month: return "summary/daily"
+        case .yearWeekly: return "summary/weekly"
+        case .yearMonthly: return "summary/monthly"
         }
     }
 }
@@ -44,7 +58,11 @@ enum ComparisonMode: String, CaseIterable, Identifiable {
 // MARK: - Metric
 
 enum Metric: String, CaseIterable, Identifiable {
+    // Day view metrics
     case energy, powerDC, powerAC, voltage, temperature, powerPerString
+    // Summary view metrics
+    case peakPower, peakVoltage, peakTemp
+
     var id: String { rawValue }
 
     var label: String {
@@ -55,20 +73,32 @@ enum Metric: String, CaseIterable, Identifiable {
         case .voltage: return "Voltage"
         case .temperature: return "Temperature"
         case .powerPerString: return "Power / String"
+        case .peakPower: return "Peak Power"
+        case .peakVoltage: return "Peak Voltage"
+        case .peakTemp: return "Peak Temp"
         }
     }
 
     var unit: String {
         switch self {
         case .energy: return "kWh"
-        case .powerDC, .powerAC, .powerPerString: return "kW"
-        case .voltage: return "V"
-        case .temperature: return "°C"
+        case .powerDC, .powerAC, .powerPerString, .peakPower: return "kW"
+        case .voltage, .peakVoltage: return "V"
+        case .temperature, .peakTemp: return "°C"
         }
     }
 
     var showsComparison: Bool {
         self != .powerPerString
+    }
+
+    static let dayMetrics: [Metric] = [
+        .energy, .powerDC, .powerAC, .voltage, .temperature, .powerPerString,
+    ]
+    static let summaryMetrics: [Metric] = [.energy, .peakPower, .peakVoltage, .peakTemp]
+
+    static func metrics(for granularity: Granularity) -> [Metric] {
+        granularity.usesSummaries ? summaryMetrics : dayMetrics
     }
 }
 
@@ -131,7 +161,7 @@ struct PeriodRange {
             let comps = cal.dateComponents([.year, .month], from: date)
             start = cal.date(from: comps) ?? fallback
             end = cal.date(byAdding: .month, value: 1, to: start) ?? start
-        case .year:
+        case .yearWeekly, .yearMonthly:
             let comps = cal.dateComponents([.year], from: date)
             start = cal.date(from: comps) ?? fallback
             end = cal.date(byAdding: .year, value: 1, to: start) ?? start
@@ -163,15 +193,26 @@ final class StatsDataManager {
         self.config = config
     }
 
-    func load(date: Date, granularity: Granularity, comparisonMode: ComparisonMode, metric: Metric) -> ChartData {
-        let pRange = PeriodRange.primary(for: date, granularity: granularity)
-        let cRange = pRange.comparison(mode: comparisonMode, granularity: granularity)
+    func load(date: Date, granularity: Granularity, comparisonMode: ComparisonMode, metric: Metric)
+        -> ChartData
+    {
+        if granularity.usesSummaries {
+            return loadSummary(
+                date: date, granularity: granularity, comparisonMode: comparisonMode, metric: metric
+            )
+        } else {
+            return loadDay(date: date, comparisonMode: comparisonMode, metric: metric)
+        }
+    }
+
+    private func loadDay(date: Date, comparisonMode: ComparisonMode, metric: Metric) -> ChartData {
+        let pRange = PeriodRange.primary(for: date, granularity: .day)
+        let cRange = pRange.comparison(mode: comparisonMode, granularity: .day)
 
         let primaryReadings = reader.readRange(from: pRange.start, to: pRange.end)
         let allComparisonReadings = reader.readRange(from: cRange.start, to: cRange.end)
 
         // Trim comparison to same time-of-day as latest primary reading
-        // so delta compares apples-to-apples (e.g., today at 14:00 vs yesterday at 14:00)
         let comparisonReadings: [InverterReading]
         if let lastPrimary = primaryReadings.last?.date {
             let elapsed = lastPrimary.timeIntervalSince(pRange.start)
@@ -184,19 +225,44 @@ final class StatsDataManager {
             comparisonReadings = allComparisonReadings
         }
 
-        let primaryPoints = aggregate(readings: primaryReadings, metric: metric, granularity: granularity)
-        let comparisonPoints = aggregate(readings: comparisonReadings, metric: metric, granularity: granularity)
+        let primaryPoints = rawDataPoints(readings: primaryReadings, metric: metric)
+        let comparisonPoints = rawDataPoints(readings: comparisonReadings, metric: metric)
 
-        // Rebase comparison points to align with primary period
         let offset = pRange.start.timeIntervalSince(cRange.start)
         let rebasedComparison = comparisonPoints.map { p in
             DataPoint(date: p.date.addingTimeInterval(offset), value: p.value, value2: p.value2)
         }
 
-        let totalEnergy = sumDailyEnergy(readings: primaryReadings)
-        let compTotalEnergy = sumDailyEnergy(readings: comparisonReadings)
-        let peakPower = primaryReadings.map(\.pac).max().map { $0 / 1000.0 } ?? 0
-        let alerts = detectAlerts(readings: primaryReadings)
+        return ChartData(
+            primary: primaryPoints,
+            comparison: rebasedComparison,
+            totalEnergy: sumDailyEnergy(readings: primaryReadings),
+            comparisonTotalEnergy: sumDailyEnergy(readings: comparisonReadings),
+            peakPower: primaryReadings.map(\.pac).max().map { $0 / 1000.0 } ?? 0,
+            alerts: detectAlerts(readings: primaryReadings)
+        )
+    }
+
+    private func loadSummary(
+        date: Date, granularity: Granularity, comparisonMode: ComparisonMode, metric: Metric
+    ) -> ChartData {
+        let pRange = PeriodRange.primary(for: date, granularity: granularity)
+        let cRange = pRange.comparison(mode: comparisonMode, granularity: granularity)
+
+        let primarySummaries = fetchSummaries(range: pRange, granularity: granularity)
+        let comparisonSummaries = fetchSummaries(range: cRange, granularity: granularity)
+
+        let primaryPoints = summaryDataPoints(summaries: primarySummaries, metric: metric)
+        let comparisonPoints = summaryDataPoints(summaries: comparisonSummaries, metric: metric)
+
+        let offset = pRange.start.timeIntervalSince(cRange.start)
+        let rebasedComparison = comparisonPoints.map { p in
+            DataPoint(date: p.date.addingTimeInterval(offset), value: p.value, value2: p.value2)
+        }
+
+        let totalEnergy = primarySummaries.map(\.totalEnergy).reduce(0, +)
+        let compTotalEnergy = comparisonSummaries.map(\.totalEnergy).reduce(0, +)
+        let peakPower = primarySummaries.map(\.peakPowerAC).max() ?? 0
 
         return ChartData(
             primary: primaryPoints,
@@ -204,44 +270,114 @@ final class StatsDataManager {
             totalEnergy: totalEnergy,
             comparisonTotalEnergy: compTotalEnergy,
             peakPower: peakPower,
-            alerts: alerts
+            alerts: []
         )
+    }
+
+    private func fetchSummaries(range: PeriodRange, granularity: Granularity) -> [PeriodSummary] {
+        if let remote = reader as? RemoteReader, let endpoint = granularity.summaryEndpoint {
+            return remote.fetchSummaries(endpoint: endpoint, from: range.start, to: range.end)
+        }
+        // Local mode: always compute from raw readings via daily summaries
+        let dailies = reader.readDailySummaries(from: range.start, to: range.end)
+        switch granularity {
+        case .day:
+            return []
+        case .week, .month:
+            return dailies
+        case .yearWeekly:
+            return aggregateLocal(dailies, components: [.yearForWeekOfYear, .weekOfYear])
+        case .yearMonthly:
+            return aggregateLocal(dailies, components: [.year, .month])
+        }
+    }
+
+    private func aggregateLocal(_ summaries: [PeriodSummary], components: Set<Calendar.Component>)
+        -> [PeriodSummary]
+    {
+        let cal = Calendar.current
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+
+        var grouped: [(key: DateComponents, items: [PeriodSummary])] = []
+        var currentKey: DateComponents?
+        var currentItems: [PeriodSummary] = []
+
+        for s in summaries {
+            guard let d = s.date else { continue }
+            let key = cal.dateComponents(components, from: d)
+            if key == currentKey {
+                currentItems.append(s)
+            } else {
+                if let k = currentKey, !currentItems.isEmpty {
+                    grouped.append((key: k, items: currentItems))
+                }
+                currentKey = key
+                currentItems = [s]
+            }
+        }
+        if let k = currentKey, !currentItems.isEmpty {
+            grouped.append((key: k, items: currentItems))
+        }
+
+        return grouped.compactMap { (key, items) in
+            guard let periodDate = cal.date(from: key) else { return nil }
+            return PeriodSummary(
+                periodStart: fmt.string(from: periodDate),
+                totalEnergy: items.map(\.totalEnergy).reduce(0, +),
+                peakPowerAC: items.map(\.peakPowerAC).max() ?? 0,
+                peakPowerDC: items.map(\.peakPowerDC).max() ?? 0,
+                peakVoltage: items.map(\.peakVoltage).max() ?? 0,
+                maxTemperature: items.map(\.maxTemperature).max() ?? 0,
+                peakPpv1: items.map(\.peakPpv1).max() ?? 0,
+                peakPpv2: items.map(\.peakPpv2).max() ?? 0
+            )
+        }
     }
 
     private func detectAlerts(readings: [InverterReading]) -> [PeriodAlert] {
         var alerts: [PeriodAlert] = []
 
         // Track voltage spans and fault spans separately
-        typealias Span = (severity: PeriodAlert.Severity, start: String, end: String, detail: String)
+        typealias Span = (
+            severity: PeriodAlert.Severity, start: String, end: String, detail: String
+        )
 
         // Voltage spans
         var vSeverity: PeriodAlert.Severity? = nil
-        var vStart = "", vEnd = "", vMin = 0.0, vMax = 0.0
+        var vStart = ""
+        var vEnd = ""
+        var vMin = 0.0
+        var vMax = 0.0
 
         // Fault spans
         var faultType: Int = 0
-        var fStart = "", fEnd = ""
+        var fStart = ""
+        var fEnd = ""
 
         func closeVoltageSpan() {
             guard let sev = vSeverity else { return }
             let label = sev == .critical ? "critical" : "warning"
             let threshold = sev == .critical ? config.alertCriticalV : config.alertWarningV
             let time = formatTimeRange(vStart, vEnd)
-            alerts.append(PeriodAlert(
-                severity: sev,
-                message: "\(f0(vMin))–\(f0(vMax))V (\(label) ≥\(f0(threshold))V)",
-                timestamp: time
-            ))
+            alerts.append(
+                PeriodAlert(
+                    severity: sev,
+                    message: "\(f0(vMin))–\(f0(vMax))V (\(label) ≥\(f0(threshold))V)",
+                    timestamp: time
+                ))
         }
 
         func closeFaultSpan() {
             guard faultType != 0 else { return }
             let time = formatTimeRange(fStart, fEnd)
-            alerts.append(PeriodAlert(
-                severity: .critical,
-                message: "\(faultName(faultType)) (\(faultType))",
-                timestamp: time
-            ))
+            alerts.append(
+                PeriodAlert(
+                    severity: .critical,
+                    message: "\(faultName(faultType)) (\(faultType))",
+                    timestamp: time
+                ))
         }
 
         for r in readings {
@@ -261,8 +397,10 @@ final class StatsDataManager {
                 closeVoltageSpan()
                 vSeverity = sev
                 if sev != nil {
-                    vStart = r.timestamp; vEnd = r.timestamp
-                    vMin = r.vmaxPhase; vMax = r.vmaxPhase
+                    vStart = r.timestamp
+                    vEnd = r.timestamp
+                    vMin = r.vmaxPhase
+                    vMax = r.vmaxPhase
                 }
             }
 
@@ -273,7 +411,8 @@ final class StatsDataManager {
                 } else {
                     closeFaultSpan()
                     faultType = r.faultType
-                    fStart = r.timestamp; fEnd = r.timestamp
+                    fStart = r.timestamp
+                    fEnd = r.timestamp
                 }
             } else if faultType != 0 {
                 closeFaultSpan()
@@ -353,60 +492,31 @@ final class StatsDataManager {
         }.reduce(0, +)
     }
 
-    private func aggregate(readings: [InverterReading], metric: Metric, granularity: Granularity) -> [DataPoint] {
-        guard !readings.isEmpty else { return [] }
-
-        // For day view, return raw points (no aggregation)
-        if granularity == .day {
-            return readings.compactMap { r in
-                guard let d = r.date else { return nil }
-                let (v1, v2) = extractValues(from: r, metric: metric)
-                return DataPoint(date: d, value: v1, value2: v2)
-            }
-        }
-
-        // Group readings into time buckets
-        let cal = Calendar.current
-        var buckets: [Date: [(Double, Double?)]] = [:]
-        for r in readings {
-            guard let d = r.date else { continue }
-            let comps: DateComponents
-            switch granularity {
-            case .week:
-                comps = cal.dateComponents([.year, .month, .day, .hour], from: d)
-            case .month:
-                comps = cal.dateComponents([.year, .month, .day], from: d)
-            case .year:
-                comps = cal.dateComponents([.year, .month], from: d)
-            case .day:
-                fatalError("Unreachable: day granularity handled above")
-            }
-            let bucketDate = cal.date(from: comps) ?? d
+    private func rawDataPoints(readings: [InverterReading], metric: Metric) -> [DataPoint] {
+        readings.compactMap { r in
+            guard let d = r.date else { return nil }
             let (v1, v2) = extractValues(from: r, metric: metric)
-            buckets[bucketDate, default: []].append((v1, v2))
+            return DataPoint(date: d, value: v1, value2: v2)
         }
+    }
 
-        return buckets.sorted { $0.key < $1.key }.map { (date, values) in
-            let aggregated: Double
-            let aggregated2: Double?
-
+    private func summaryDataPoints(summaries: [PeriodSummary], metric: Metric) -> [DataPoint] {
+        summaries.compactMap { s in
+            guard let d = s.date else { return nil }
+            let value: Double
             switch metric {
-            case .energy:
-                aggregated = values.map(\.0).max() ?? 0
-                aggregated2 = nil
-            case .voltage, .temperature:
-                aggregated = values.map(\.0).max() ?? 0
-                aggregated2 = nil
-            case .powerDC, .powerAC:
-                aggregated = values.map(\.0).reduce(0, +) / Double(values.count)
-                aggregated2 = nil
-            case .powerPerString:
-                aggregated = values.map(\.0).reduce(0, +) / Double(values.count)
-                let v2s = values.compactMap(\.1)
-                aggregated2 = v2s.isEmpty ? nil : v2s.reduce(0, +) / Double(v2s.count)
+            case .energy: value = s.totalEnergy
+            case .peakPower: value = s.peakPowerAC
+            case .peakVoltage: value = s.peakVoltage
+            case .peakTemp: value = s.maxTemperature
+            // Day-only metrics shouldn't appear in summary views, but handle gracefully
+            case .powerDC: value = s.peakPowerDC
+            case .powerAC: value = s.peakPowerAC
+            case .voltage: value = s.peakVoltage
+            case .temperature: value = s.maxTemperature
+            case .powerPerString: value = s.peakPpv1
             }
-
-            return DataPoint(date: date, value: aggregated, value2: aggregated2)
+            return DataPoint(date: d, value: value, value2: nil)
         }
     }
 
@@ -418,12 +528,14 @@ final class StatsDataManager {
             return (r.ppv / 1000.0, nil)
         case .powerAC:
             return (r.pac / 1000.0, nil)
-        case .voltage:
+        case .voltage, .peakVoltage:
             return (r.vmaxPhase, nil)
-        case .temperature:
+        case .temperature, .peakTemp:
             return (r.temperature, nil)
         case .powerPerString:
             return (r.ppv1 / 1000.0, r.ppv2 / 1000.0)
+        case .peakPower:
+            return (r.pac / 1000.0, nil)
         }
     }
 }

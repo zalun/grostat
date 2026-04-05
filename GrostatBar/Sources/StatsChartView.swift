@@ -1,9 +1,10 @@
-import SwiftUI
 import Charts
+import SwiftUI
 
 struct StatsChartView: View {
     let data: ChartData
     let metric: Metric
+    let granularity: Granularity
     @State private var hoverDate: Date?
 
     private let solarGold = Color(red: 0.95, green: 0.75, blue: 0.2)
@@ -83,8 +84,9 @@ struct StatsChartView: View {
                             if let date: Date = proxy.value(atX: plotX) {
                                 // Clamp to data range to prevent chart expansion
                                 if let mn = data.primary.first?.date,
-                                   let mx = data.primary.last?.date,
-                                   date >= mn && date <= mx {
+                                    let mx = data.primary.last?.date,
+                                    date >= mn && date <= mx
+                                {
                                     hoverDate = date
                                 } else {
                                     hoverDate = nil
@@ -108,7 +110,7 @@ struct StatsChartView: View {
 
     @ChartContentBuilder
     private var primaryMarks: some ChartContent {
-        let segments = segmentsByGap(data.primary, maxGap: maxGapSeconds)
+        let segments = segments(data.primary)
         ForEach(Array(segments.enumerated()), id: \.offset) { idx, segment in
             ForEach(segment) { point in
                 LineMark(
@@ -137,7 +139,7 @@ struct StatsChartView: View {
 
     @ChartContentBuilder
     private var comparisonMarks: some ChartContent {
-        let segments = segmentsByGap(data.comparison, maxGap: maxGapSeconds)
+        let segments = segments(data.comparison)
         ForEach(Array(segments.enumerated()), id: \.offset) { idx, segment in
             ForEach(segment) { point in
                 LineMark(
@@ -152,11 +154,12 @@ struct StatsChartView: View {
         }
     }
 
-    private func segmentsByGap(_ points: [DataPoint], maxGap: TimeInterval) -> [[DataPoint]] {
+    private func segments(_ points: [DataPoint]) -> [[DataPoint]] {
         guard !points.isEmpty else { return [] }
+        if granularity != .day { return [points] }
         var segments: [[DataPoint]] = [[points[0]]]
         for i in 1..<points.count {
-            if points[i].date.timeIntervalSince(points[i - 1].date) > maxGap {
+            if points[i].date.timeIntervalSince(points[i - 1].date) > maxGapSeconds {
                 segments.append([points[i]])
             } else {
                 segments[segments.count - 1].append(points[i])
@@ -169,7 +172,7 @@ struct StatsChartView: View {
 
     @ChartContentBuilder
     private var powerPerStringMarks: some ChartContent {
-        let segments = segmentsByGap(data.primary, maxGap: maxGapSeconds)
+        let segments = segments(data.primary)
         ForEach(Array(segments.enumerated()), id: \.offset) { idx, segment in
             ForEach(segment) { point in
                 LineMark(
@@ -201,7 +204,8 @@ struct StatsChartView: View {
         GeometryReader { geo in
             if let x: CGFloat = proxy.position(forX: hover) {
                 let primaryVal = nearestValue(in: data.primary, to: hover)
-                let compVal = metric.showsComparison ? nearestValue(in: data.comparison, to: hover) : nil
+                let compVal =
+                    metric.showsComparison ? nearestValue(in: data.comparison, to: hover) : nil
 
                 VStack(alignment: .leading, spacing: 2) {
                     if let pv = primaryVal {
@@ -236,7 +240,9 @@ struct StatsChartView: View {
 
     private func nearestValue(in points: [DataPoint], to date: Date) -> Double? {
         guard !points.isEmpty else { return nil }
-        let nearest = points.min(by: { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) })
+        let nearest = points.min(by: {
+            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+        })
         guard let p = nearest, abs(p.date.timeIntervalSince(date)) < 86400 else { return nil }
         return p.value
     }

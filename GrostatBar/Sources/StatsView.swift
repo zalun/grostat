@@ -62,11 +62,30 @@ struct StatsView: View {
                 }
             }
         }
-        .onChange(of: periodState.granularity) { _ in reloadData() }
+        .onChange(of: periodState.granularity) { _ in
+            adjustMetricsForGranularity()
+            reloadData()
+        }
         .onChange(of: periodState.selectedDate) { _ in reloadData() }
         .onChange(of: periodState.comparisonMode) { _ in reloadData() }
         .onChange(of: leftMetricRaw) { _ in reloadLeftData() }
         .onChange(of: rightMetricRaw) { _ in reloadRightData() }
+    }
+
+    private var availableMetrics: [Metric] {
+        Metric.metrics(for: periodState.granularity)
+    }
+
+    private func adjustMetricsForGranularity() {
+        let available = availableMetrics
+        if !available.contains(leftMetric) {
+            leftMetricRaw = available.first?.rawValue ?? Metric.energy.rawValue
+        }
+        if !available.contains(rightMetric) {
+            rightMetricRaw =
+                (available.count > 1 ? available[1] : available.first)?.rawValue
+                ?? Metric.energy.rawValue
+        }
     }
 
     private func reloadData() {
@@ -98,7 +117,7 @@ struct StatsView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Picker("", selection: metricBinding) {
-                    ForEach(Metric.allCases) { m in
+                    ForEach(availableMetrics) { m in
                         Text(m.label).tag(m.rawValue)
                     }
                 }
@@ -113,7 +132,7 @@ struct StatsView: View {
             }
 
             if let d = data {
-                StatsChartView(data: d, metric: metric)
+                StatsChartView(data: d, metric: metric, granularity: periodState.granularity)
                     .frame(minHeight: 200)
             } else {
                 Rectangle()
