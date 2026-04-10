@@ -80,9 +80,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func connectToServer(_ address: String) {
-        let parts = address.split(separator: ":")
-        let host = String(parts[0])
-        let port = parts.count > 1 ? UInt16(parts[1]) ?? 7654 : UInt16(7654)
+        let host: String
+        let port: UInt16
+        // Parse [IPv6]:port or host:port
+        if address.hasPrefix("["), let close = address.firstIndex(of: "]") {
+            host = String(address[address.startIndex...close])
+            let after = address[address.index(after: close)...]
+            port = after.hasPrefix(":") ? UInt16(after.dropFirst()) ?? 7654 : 7654
+        } else {
+            let parts = address.split(separator: ":")
+            host = String(parts[0])
+            port = parts.count > 1 ? UInt16(parts[1]) ?? 7654 : 7654
+        }
 
         let remote = RemoteReader(host: host, port: port)
         remote.onConnectionFailed = { [weak self] in
@@ -135,10 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.browser = nil
                 // host from NWConnection may be IPv6 — sanitize for URL use
                 var cleanHost = host
-                // Remove IPv6 scope ID (e.g., %en0)
-                if let pct = cleanHost.firstIndex(of: "%") {
-                    cleanHost = String(cleanHost[..<pct])
-                }
+                // URL-encode scope ID (% → %25) so URLs parse correctly
+                cleanHost = cleanHost.replacingOccurrences(of: "%", with: "%25")
                 // Wrap IPv6 in brackets for URL
                 if cleanHost.contains(":") {
                     cleanHost = "[\(cleanHost)]"
