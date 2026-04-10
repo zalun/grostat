@@ -260,8 +260,15 @@ final class StatsDataManager {
             DataPoint(date: p.date.addingTimeInterval(offset), value: p.value, value2: p.value2)
         }
 
-        let totalEnergy = primarySummaries.map(\.totalEnergy).reduce(0, +)
-        let compTotalEnergy = comparisonSummaries.map(\.totalEnergy).reduce(0, +)
+        // For delta: exclude today (incomplete) from both periods
+        let cal = Calendar.current
+        let completePrimary = primarySummaries.filter {
+            guard let d = $0.date else { return true }
+            return !cal.isDateInToday(d)
+        }
+        let trimmedComparison = comparisonSummaries.prefix(completePrimary.count)
+        let totalEnergy = completePrimary.map(\.totalEnergy).reduce(0, +)
+        let compTotalEnergy = trimmedComparison.map(\.totalEnergy).reduce(0, +)
         let peakPower = primarySummaries.map(\.peakPowerAC).max() ?? 0
 
         return ChartData(

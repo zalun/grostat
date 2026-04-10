@@ -21,13 +21,22 @@ struct PeriodSelector: View {
 
                 Text(state.periodLabel)
                     .font(.system(.body, design: .monospaced))
-                    .frame(minWidth: 160)
+                    .lineLimit(1)
+                    .frame(minWidth: 200)
 
                 Button(action: state.stepForward) {
                     Image(systemName: "chevron.right")
                 }
                 .buttonStyle(.borderless)
             }
+
+            Button(action: state.goToCurrent) {
+                Text("Today")
+                    .font(.caption)
+            }
+            .buttonStyle(.borderless)
+            .disabled(state.isCurrentPeriod)
+            .opacity(state.isCurrentPeriod ? 0.3 : 1.0)
 
             Text("vs")
                 .foregroundColor(.secondary)

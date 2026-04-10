@@ -44,6 +44,15 @@ final class PeriodState: ObservableObject {
         }
     }
 
+    var isCurrentPeriod: Bool {
+        Calendar.current.isDate(
+            selectedDate, equalTo: Date(), toGranularity: granularity.calendarComponent)
+    }
+
+    func goToCurrent() {
+        selectedDate = Date()
+    }
+
     func stepForward() {
         selectedDate = step(by: 1)
     }
