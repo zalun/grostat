@@ -108,9 +108,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.config.ratedPowerW = rc.ratedPowerW
                     self.config.alertWarningV = rc.alertWarningV
                     self.config.alertCriticalV = rc.alertCriticalV
+                    self.reader = remote
+                    self.startRefreshLoop()
+                } else {
+                    // Saved server unreachable or address invalid — clear and rediscover.
+                    self.handleConnectionFailed()
                 }
-                self.reader = remote
-                self.startRefreshLoop()
             }
         }
     }
@@ -136,21 +139,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func resolveAndConnect(_ server: DiscoveredServer) {
-        // Resolve to get a usable IP address, then connect
+        // Resolve to get a usable IP address, then connect.
+        // host is already URL-formatted by ServerBrowser.urlHost (IPv6 bracketed,
+        // IPv4 scope-stripped).
         browser?.resolve(server) { [weak self] host, port in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.browser?.stop()
                 self.browser = nil
-                // host from NWConnection may be IPv6 — sanitize for URL use
-                var cleanHost = host
-                // URL-encode scope ID (% → %25) so URLs parse correctly
-                cleanHost = cleanHost.replacingOccurrences(of: "%", with: "%25")
-                // Wrap IPv6 in brackets for URL
-                if cleanHost.contains(":") {
-                    cleanHost = "[\(cleanHost)]"
-                }
-                let address = "\(cleanHost):\(port)"
+                let address = "\(host):\(port)"
                 self.config.server = address
                 self.config.save()
                 self.connectToServer(address)

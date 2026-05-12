@@ -74,24 +74,46 @@ final class ServerBrowser {
     }
 
     func resolve(_ server: DiscoveredServer, completion: @escaping (String, UInt16) -> Void) {
-        guard let result = discovered.first(where: {
-            if case .service(let name, _, _, _) = $0.endpoint {
-                return "\(name)" == server.hostname
-            }
-            return false
-        }) else { return }
+        guard
+            let result = discovered.first(where: {
+                if case .service(let name, _, _, _) = $0.endpoint {
+                    return "\(name)" == server.hostname
+                }
+                return false
+            })
+        else { return }
 
         let connection = NWConnection(to: result.endpoint, using: .tcp)
         connection.stateUpdateHandler = { state in
             if case .ready = state {
                 if let path = connection.currentPath,
-                   let endpoint = path.remoteEndpoint,
-                   case .hostPort(let host, let port) = endpoint {
-                    completion(host.debugDescription, port.rawValue)
+                    let endpoint = path.remoteEndpoint,
+                    case .hostPort(let host, let port) = endpoint
+                {
+                    completion(Self.urlHost(from: host), port.rawValue)
                 }
                 connection.cancel()
             }
         }
         connection.start(queue: self.queue)
+    }
+
+    /// Convert NWEndpoint.Host into a URL-safe host string.
+    /// IPv4: dotted form, scope ID dropped (URLs don't accept it and it's not needed).
+    /// IPv6: bracketed, scope ID URL-encoded (% → %25) so URL(string:) parses link-local.
+    static func urlHost(from host: NWEndpoint.Host) -> String {
+        switch host {
+        case .ipv4(let addr):
+            // IPv4Address description may include "%interface" — strip it.
+            let raw = "\(addr)"
+            return raw.split(separator: "%").first.map(String.init) ?? raw
+        case .ipv6(let addr):
+            let encoded = "\(addr)".replacingOccurrences(of: "%", with: "%25")
+            return "[\(encoded)]"
+        case .name(let name, _):
+            return name
+        @unknown default:
+            return "\(host)"
+        }
     }
 }

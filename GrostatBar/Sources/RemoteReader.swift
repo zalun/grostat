@@ -32,20 +32,33 @@ final class RemoteReader: ReadingProvider {
     }
 
     func fetchConfig() {
-        guard let url = URL(string: "http://\(host):\(port)/config") else { return }
+        guard let url = URL(string: "http://\(host):\(port)/config") else {
+            log.error("Invalid server URL: http://\(self.host):\(self.port)/config")
+            handleFailure()
+            return
+        }
         let sem = DispatchSemaphore(value: 0)
-        session.dataTask(with: url) { [weak self] data, _, _ in
+        session.dataTask(with: url) { [weak self] data, _, error in
             defer { sem.signal() }
-            guard let self, let data else { return }
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                self.remoteConfig = RemoteConfig(
-                    deviceSn: json["device_sn"] as? String ?? "",
-                    ratedPowerW: json["rated_power_w"] as? Int ?? 10000,
-                    alertWarningV: json["alert_warning_v"] as? Double ?? 250.0,
-                    alertCriticalV: json["alert_critical_v"] as? Double ?? 253.0
-                )
-                self.failCount = 0
+            guard let self else { return }
+            if let error {
+                log.error("Failed to fetch config: \(error.localizedDescription)")
+                self.handleFailure()
+                return
             }
+            guard let data,
+                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else {
+                self.handleFailure()
+                return
+            }
+            self.remoteConfig = RemoteConfig(
+                deviceSn: json["device_sn"] as? String ?? "",
+                ratedPowerW: json["rated_power_w"] as? Int ?? 10000,
+                alertWarningV: json["alert_warning_v"] as? Double ?? 250.0,
+                alertCriticalV: json["alert_critical_v"] as? Double ?? 253.0
+            )
+            self.failCount = 0
         }.resume()
         sem.wait()
     }
