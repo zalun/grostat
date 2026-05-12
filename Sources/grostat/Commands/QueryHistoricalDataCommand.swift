@@ -82,6 +82,11 @@ struct QueryHistoricalDataCommand: ParsableCommand {
         print(
             "\nDone. Total: \(summary.inserted) inserted, \(summary.skipped) duplicates skipped."
         )
+        if summary.rateLimited {
+            print(
+                "Stopped at Growatt's hourly rate limit. \(summary.remainingDays.count) days remain. Wait ~1h and re-run."
+            )
+        }
         if !summary.failedDays.isEmpty {
             print("Failed: \(summary.failedDays.joined(separator: ", "))")
         }

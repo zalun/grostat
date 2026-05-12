@@ -62,11 +62,21 @@ struct GrowattClient {
                 let code = (json["code"] as? Int) ?? -1
                 if code != 0 {
                     let msg = json["msg"] as? String ?? "unknown"
+                    // Growatt rate-limits at code=20 (observed ~15 req/h on the historical
+                    // endpoint). Retrying within seconds just burns time — propagate immediately
+                    // so the caller can abort the batch.
+                    if code == 20 {
+                        throw GrostatError.rateLimited(msg)
+                    }
                     throw GrostatError.api("API error (code=\(code)): \(msg)")
                 }
 
                 return json["data"] as? [String: Any] ?? json
             } catch {
+                // Don't retry rate-limit errors — the next attempt will fail the same way.
+                if let grostat = error as? GrostatError, case .rateLimited = grostat {
+                    throw error
+                }
                 lastError = error
                 if attempt < retries {
                     Log.warning(

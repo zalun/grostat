@@ -5,6 +5,10 @@ struct FetchSummary {
     var inserted: Int = 0
     var skipped: Int = 0
     var failedDays: [String] = []
+    /// True if the batch was aborted mid-way due to a Growatt rate-limit response (code=20).
+    var rateLimited: Bool = false
+    /// Remaining dates that were not attempted because of the rate limit.
+    var remainingDays: [String] = []
 }
 
 /// Shared per-day fetch loop used by `query-historical-data` and `backfill`.
@@ -33,6 +37,12 @@ struct HistoricalFetcher {
             do {
                 readings = try client.fetchHistoricalData(date: date)
             } catch {
+                if let grostat = error as? GrostatError, case .rateLimited(let msg) = grostat {
+                    print("RATE LIMITED (code=20): \(msg)")
+                    summary.rateLimited = true
+                    summary.remainingDays = Array(dates[i...])
+                    return summary
+                }
                 print("ERROR: \(error.shortDescription)")
                 summary.failedDays.append(date)
                 if i + 1 < dates.count {

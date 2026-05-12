@@ -87,6 +87,14 @@ struct BackfillCommand: ParsableCommand {
 
         print(
             "\nDone. Total: \(summary.inserted) inserted, \(summary.skipped) duplicates skipped.")
+        if summary.rateLimited {
+            print(
+                "Stopped at Growatt's rate limit (~15 req/h on historical endpoint). \(summary.remainingDays.count) days remain."
+            )
+            print(
+                "Wait ~1 hour and run `grostat backfill` again — already-fetched days will be skipped."
+            )
+        }
         if !summary.failedDays.isEmpty {
             print("Failed: \(summary.failedDays.joined(separator: ", "))")
         }
