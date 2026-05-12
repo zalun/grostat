@@ -58,4 +58,4 @@
 
 - [x] 8.1 Bump version in `Sources/grostat/Grostat.swift` and `GrostatBar/` Package version markers (CLI bump only is fine if the app didn't change — check `just publish` script) *(bumped CLI to 0.10.0; GrostatBar untouched)*
 - [ ] 8.2 Ask user before tagging / pushing / publishing per CLAUDE.md
-- [ ] 8.3 Commit with descriptive message `Add backfill subcommand for filling data gaps (vX.Y.Z)` (no Co-Authored-By)
+- [x] 8.3 Commit with descriptive message `Add backfill subcommand for filling data gaps (vX.Y.Z)` (no Co-Authored-By) *(committed as 77b17fc, pushed to origin/main)*

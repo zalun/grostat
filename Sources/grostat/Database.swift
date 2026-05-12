@@ -105,12 +105,23 @@ final class Database {
     }
 
     /// Returns one row per day with at least one reading in `[from, to]` (inclusive, `YYYY-MM-DD`).
+    ///
+    /// Counts **distinct 5-minute slots** in the daytime window 06:00–20:00. This normalises
+    /// across collection sources: launchd writes one reading per 5-min slot, while the
+    /// Growatt API can return several readings per slot when backfilled. The slot-based
+    /// count gives a stable max of 168 per fully-covered day regardless of source.
     func countsByDay(from: String, to: String) -> [(day: String, count: Int)] {
         let rows = query(
             """
-            SELECT substr(timestamp, 1, 10) AS day, COUNT(*) AS cnt
-            FROM readings
-            WHERE substr(timestamp, 1, 10) BETWEEN ? AND ?
+            SELECT day, COUNT(DISTINCT slot) AS cnt FROM (
+                SELECT substr(timestamp, 1, 10) AS day,
+                       (CAST(substr(timestamp, 12, 2) AS INTEGER) * 60
+                        + CAST(substr(timestamp, 15, 2) AS INTEGER)) / 5 AS slot
+                FROM readings
+                WHERE substr(timestamp, 1, 10) BETWEEN ? AND ?
+                  AND substr(timestamp, 12, 8) >= '06:00:00'
+                  AND substr(timestamp, 12, 8) <  '20:00:00'
+            )
             GROUP BY day
             ORDER BY day
             """,
@@ -121,16 +132,20 @@ final class Database {
         }
     }
 
-    /// Returns `YYYY-MM → max daily count` for months overlapping `[from, to]`.
+    /// Returns `YYYY-MM → max daily slot count` (same slot-based count as `countsByDay`).
     func monthMaxes(from: String, to: String) -> [String: Int] {
         let rows = query(
             """
             SELECT month, MAX(cnt) AS mx FROM (
-                SELECT substr(timestamp, 1, 7) AS month,
-                       substr(timestamp, 1, 10) AS day,
-                       COUNT(*) AS cnt
-                FROM readings
-                WHERE substr(timestamp, 1, 10) BETWEEN ? AND ?
+                SELECT substr(day, 1, 7) AS month, day, COUNT(DISTINCT slot) AS cnt FROM (
+                    SELECT substr(timestamp, 1, 10) AS day,
+                           (CAST(substr(timestamp, 12, 2) AS INTEGER) * 60
+                            + CAST(substr(timestamp, 15, 2) AS INTEGER)) / 5 AS slot
+                    FROM readings
+                    WHERE substr(timestamp, 1, 10) BETWEEN ? AND ?
+                      AND substr(timestamp, 12, 8) >= '06:00:00'
+                      AND substr(timestamp, 12, 8) <  '20:00:00'
+                )
                 GROUP BY day
             )
             GROUP BY month

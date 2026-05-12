@@ -2,12 +2,14 @@
 
 ### Requirement: Gap detection by per-day reading count
 
-The system SHALL detect incomplete days in the readings database by counting readings per calendar day (local time, derived from the `timestamp` column) and comparing each day's count against the maximum daily count observed in the same calendar month within the database.
+The system SHALL detect incomplete days in the readings database by counting **distinct 5-minute slots** within the daytime window 06:00–20:00 (local time, derived from the `timestamp` column) per calendar day, and comparing each day's slot count against the maximum slot count observed in the same calendar month within the database.
+
+A 5-minute slot is defined as `(hour × 60 + minute) / 5` (integer division), giving 168 possible slots per day in the 06:00–20:00 window. Slot-based counting normalises across collection sources: the launchd collector writes one reading per slot, while the Growatt historical API can return multiple readings per slot, but both yield the same slot count for a fully-covered day.
 
 A day SHALL be classified as one of:
 
-- **missing** — the day has zero readings in the database.
-- **partial** — the day has at least one reading but its count is strictly less than `threshold × monthMax`, where `monthMax` is the highest daily count for the same `YYYY-MM` and `threshold` defaults to `0.7`.
+- **missing** — the day has zero readings in the daytime window in the database.
+- **partial** — the day has at least one slot covered but its slot count is strictly less than `threshold × monthMax`, where `monthMax` is the highest daily slot count for the same `YYYY-MM` and `threshold` defaults to `0.7`.
 - **complete** — otherwise. Complete days SHALL NOT be listed.
 
 Detection SHALL be limited to the date range `[max(today − 95 days, oldestRecordDate), today − 1 day]`. Days earlier than the oldest record in the database SHALL NOT be classified as gaps; they belong to the separate "history extension" entry. If the database is empty, no gaps SHALL be reported.
