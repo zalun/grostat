@@ -104,6 +104,47 @@ final class Database {
         return (row["mn"] as? String, row["mx"] as? String)
     }
 
+    /// Returns one row per day with at least one reading in `[from, to]` (inclusive, `YYYY-MM-DD`).
+    func countsByDay(from: String, to: String) -> [(day: String, count: Int)] {
+        let rows = query(
+            """
+            SELECT substr(timestamp, 1, 10) AS day, COUNT(*) AS cnt
+            FROM readings
+            WHERE substr(timestamp, 1, 10) BETWEEN ? AND ?
+            GROUP BY day
+            ORDER BY day
+            """,
+            params: [from, to])
+        return rows.compactMap { row in
+            guard let day = row["day"] as? String, let cnt = row["cnt"] as? Int else { return nil }
+            return (day, cnt)
+        }
+    }
+
+    /// Returns `YYYY-MM → max daily count` for months overlapping `[from, to]`.
+    func monthMaxes(from: String, to: String) -> [String: Int] {
+        let rows = query(
+            """
+            SELECT month, MAX(cnt) AS mx FROM (
+                SELECT substr(timestamp, 1, 7) AS month,
+                       substr(timestamp, 1, 10) AS day,
+                       COUNT(*) AS cnt
+                FROM readings
+                WHERE substr(timestamp, 1, 10) BETWEEN ? AND ?
+                GROUP BY day
+            )
+            GROUP BY month
+            """,
+            params: [from, to])
+        var result: [String: Int] = [:]
+        for row in rows {
+            if let month = row["month"] as? String, let mx = row["mx"] as? Int {
+                result[month] = mx
+            }
+        }
+        return result
+    }
+
     func exportReadings(from: String? = nil, to: String? = nil) -> [[String: Any]] {
         var sql = "SELECT * FROM readings"
         var conditions: [String] = []

@@ -69,59 +69,21 @@ struct QueryHistoricalDataCommand: ParsableCommand {
 
         config.ensureDbDirectory()
         let db = try Database(path: config.resolvedDbPath)
-        let client = GrowattClient(config: config)
-        let alerts = AlertChecker(config: config)
+        let fetcher = HistoricalFetcher(
+            client: GrowattClient(config: config),
+            db: db,
+            alerts: AlertChecker(config: config))
 
-        var totalInserted = 0
-        var totalSkipped = 0
-
-        for (i, date) in dates.enumerated() {
-            print("[\(i + 1)/\(dates.count)] \(date) ... ", terminator: "")
+        let summary = fetcher.fetchDays(dates) { i, total, date in
+            print("[\(i + 1)/\(total)] \(date) ... ", terminator: "")
             fflush(stdout)
-
-            let readings: [[String: Any]]
-            do {
-                readings = try client.fetchHistoricalData(date: date)
-            } catch {
-                print("ERROR: \(error.shortDescription)")
-                if i + 1 < dates.count {
-                    print("  Waiting 60s before next request...")
-                    Thread.sleep(forTimeInterval: 60)
-                }
-                continue
-            }
-
-            if readings.isEmpty {
-                print("no data")
-            } else {
-                var inserted = 0
-                var skipped = 0
-
-                for data in readings {
-                    let ts =
-                        data["calendar"] as? String
-                        ?? data["time"] as? String
-                        ?? "\(date) 00:00:00"
-                    if db.hasTimestamp(ts) {
-                        skipped += 1
-                        continue
-                    }
-                    var reading = InverterReading.fromAPI(data, timestamp: ts)
-                    reading.alert = alerts.evaluate(reading)
-                    db.insertReading(reading)
-                    inserted += 1
-                }
-
-                print("\(inserted) inserted, \(skipped) skipped")
-                totalInserted += inserted
-                totalSkipped += skipped
-            }
-
-            if i + 1 < dates.count {
-                Thread.sleep(forTimeInterval: 60)
-            }
         }
 
-        print("\nDone. Total: \(totalInserted) inserted, \(totalSkipped) duplicates skipped.")
+        print(
+            "\nDone. Total: \(summary.inserted) inserted, \(summary.skipped) duplicates skipped."
+        )
+        if !summary.failedDays.isEmpty {
+            print("Failed: \(summary.failedDays.joined(separator: ", "))")
+        }
     }
 }
