@@ -40,3 +40,7 @@ UI design system documented in @.impeccable.md — read before making visual cha
 ## Environment
 
 Config via `~/.config/grostat/config.json` or env vars: `GROSTAT_TOKEN`, `GROSTAT_DEVICE_SN`, `GROSTAT_DB_PATH`, `GROSTAT_ALERT_WARNING_V`, `GROSTAT_ALERT_CRITICAL_V`.
+
+## Workflow
+
+@WORKFLOW.md
